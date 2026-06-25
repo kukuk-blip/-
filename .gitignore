@@ -52,3 +52,8 @@ Thumbs.db
 ehthumbs.db
 Desktop.ini
 $RECYCLE.BIN/
+
+# 临时推送脚本（含 Token，切勿提交）
+_push.ps1
+_askpass.bat
+_askpass.ps1
