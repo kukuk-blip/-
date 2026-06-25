@@ -1,0 +1,54 @@
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# Dependencies
+node_modules
+
+# Build output
+dist
+dist-ssr
+dev-dist
+*.local
+
+# ===== 本地工具链（切勿提交，数百 MB 二进制）=====
+tools/
+# Gradle / JDK 本地副本
+.gradle/
+*.jar
+# 但保留 Gradle Wrapper（Android 构建必需）
+!android/gradle/wrapper/gradle-wrapper.jar
+
+# ===== Capacitor / Android 构建产物 =====
+android/.gradle/
+android/build/
+android/app/build/
+android/captures/
+android/local.properties
+android/.idea/
+*.apk
+*.aab
+*.ap_
+*.dex
+
+# Editor directories and files
+.vscode/*
+!.vscode/extensions.json
+.idea
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# OS / 临时文件
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/

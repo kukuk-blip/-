@@ -1,0 +1,139 @@
+@import url("https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;0,700;1,400&family=Noto+Serif+SC:wght@400;500;600;700&family=Noto+Sans+SC:wght@300;400;500;600;700&display=swap");
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  font-family: "Noto Sans SC", system-ui, sans-serif;
+  line-height: 1.6;
+  font-weight: 400;
+  color: #e8eaf6;
+
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  margin: 0;
+  background-color: #070a1f;
+  background-image:
+    radial-gradient(ellipse 80% 50% at 50% -10%, rgba(245, 185, 66, 0.08), transparent),
+    radial-gradient(ellipse 60% 40% at 80% 20%, rgba(79, 195, 247, 0.06), transparent),
+    radial-gradient(ellipse 50% 40% at 20% 60%, rgba(255, 126, 159, 0.05), transparent);
+  background-attachment: fixed;
+  min-height: 100vh;
+}
+
+/* 自定义滑块样式 */
+input[type="range"] {
+  -webkit-appearance: none;
+  appearance: none;
+  background: transparent;
+  cursor: pointer;
+  width: 100%;
+}
+
+input[type="range"]::-webkit-slider-runnable-track {
+  height: 4px;
+  border-radius: 2px;
+  background: linear-gradient(
+    to right,
+    rgba(245, 185, 66, 0.8) 0%,
+    rgba(245, 185, 66, 0.8) var(--progress, 50%),
+    rgba(255, 255, 255, 0.1) var(--progress, 50%),
+    rgba(255, 255, 255, 0.1) 100%
+  );
+}
+
+input[type="range"]::-moz-range-track {
+  height: 4px;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.1);
+}
+
+input[type="range"]::-moz-range-progress {
+  height: 4px;
+  border-radius: 2px;
+  background: rgba(245, 185, 66, 0.8);
+}
+
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #f5b942;
+  margin-top: -6px;
+  box-shadow: 0 0 12px rgba(245, 185, 66, 0.6), 0 0 0 2px rgba(7, 10, 31, 0.8);
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+input[type="range"]::-webkit-slider-thumb:hover {
+  transform: scale(1.25);
+  box-shadow: 0 0 18px rgba(245, 185, 66, 0.9), 0 0 0 2px rgba(7, 10, 31, 0.8);
+}
+
+input[type="range"]::-moz-range-thumb {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #f5b942;
+  border: none;
+  box-shadow: 0 0 12px rgba(245, 185, 66, 0.6);
+  cursor: pointer;
+}
+
+/* 文本域样式 */
+textarea {
+  font-family: inherit;
+}
+
+textarea::placeholder {
+  color: rgba(232, 234, 246, 0.3);
+  font-style: italic;
+}
+
+/* 滚动条 */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #0a0e27;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(245, 185, 66, 0.3);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(245, 185, 66, 0.5);
+}
+
+/* 选中文本 */
+::selection {
+  background: rgba(245, 185, 66, 0.3);
+  color: #fff;
+}
+
+/* 渐入观察器类 */
+.reveal {
+  opacity: 0;
+  transform: translateY(28px);
+  transition: opacity 0.7s cubic-bezier(0.16, 1, 0.3, 1), transform 0.7s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.reveal.is-visible {
+  opacity: 1;
+  transform: translateY(0);
+}
