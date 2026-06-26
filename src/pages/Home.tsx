@@ -3,6 +3,7 @@ import StarfieldBackground from "@/components/StarfieldBackground";
 import Hero from "@/components/Hero";
 import OverviewSection from "@/components/OverviewSection";
 import AssessmentSection from "@/components/AssessmentSection";
+import SubjectRecommendation from "@/components/SubjectRecommendation";
 import EventSelfCheck from "@/components/EventSelfCheck";
 import SummarySection from "@/components/SummarySection";
 import { useReveal } from "@/hooks/useReveal";
@@ -26,6 +27,9 @@ export default function Home() {
       <div ref={assessmentRef}>
         <AssessmentSection />
       </div>
+
+      {/* 选科推荐：实时读取上方 12 维得分换算为 6 维学科能力 */}
+      <SubjectRecommendation />
 
       <EventSelfCheck />
 

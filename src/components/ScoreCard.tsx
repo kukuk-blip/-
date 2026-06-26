@@ -18,7 +18,7 @@ export default function ScoreCard({ type, color, colorRgb }: ScoreCardProps) {
 
   return (
     <div
-      className="group relative overflow-hidden rounded-2xl border border-white/5 bg-white/[0.02] p-6 backdrop-blur-sm transition-all duration-300 hover:border-white/10 hover:bg-white/[0.04]"
+      className="group relative overflow-hidden rounded-2xl border border-white/5 bg-white/[0.02] p-6 transition-all duration-300 hover:border-white/10 hover:bg-white/[0.04]"
       style={{ boxShadow: `inset 3px 0 0 0 ${color}` }}
     >
       {/* 悬浮光晕 */}

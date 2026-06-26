@@ -52,7 +52,7 @@ export default function SummarySection() {
           return (
             <div
               key={item.id}
-              className="relative overflow-hidden rounded-2xl border p-6 backdrop-blur-sm"
+              className="relative overflow-hidden rounded-2xl border p-6"
               style={{
                 borderColor: isTop
                   ? `rgba(${item.colorRgb}, 0.4)`
@@ -134,7 +134,7 @@ export default function SummarySection() {
       </div>
 
       {/* 发展方向建议 */}
-      <div className="reveal mb-12 rounded-2xl border border-white/5 bg-white/[0.02] p-6 backdrop-blur-sm sm:p-8">
+      <div className="reveal mb-12 rounded-2xl border border-white/5 bg-white/[0.02] p-6 sm:p-8">
         <div className="mb-5 flex items-center gap-2">
           <Lightbulb className="h-5 w-5 text-starlight" />
           <h3 className="font-serif text-xl font-semibold text-white">
@@ -173,7 +173,7 @@ export default function SummarySection() {
       </div>
 
       {/* 填写小贴士 */}
-      <div className="reveal mb-12 rounded-2xl border border-starlight/15 bg-starlight/[0.03] p-6 backdrop-blur-sm sm:p-8">
+      <div className="reveal mb-12 rounded-2xl border border-starlight/15 bg-starlight/[0.03] p-6 sm:p-8">
         <h3 className="mb-4 font-serif text-lg font-semibold text-starlight">
           填写小贴士
         </h3>

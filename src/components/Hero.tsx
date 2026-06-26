@@ -39,7 +39,7 @@ export default function Hero({ onScrollToAssessment }: HeroProps) {
         ].map((item, i) => (
           <div
             key={item.num}
-            className="animate-float-up rounded-xl border border-white/5 bg-white/[0.02] px-5 py-4 text-left backdrop-blur-sm"
+            className="animate-float-up rounded-xl border border-white/5 bg-white/[0.02] px-5 py-4 text-left"
             style={{ animationDelay: `${0.4 + i * 0.12}s`, opacity: 0 }}
           >
             <div className="font-display text-2xl text-starlight/70">{item.num}</div>

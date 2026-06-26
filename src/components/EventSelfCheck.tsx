@@ -28,7 +28,7 @@ export default function EventSelfCheck() {
       </div>
 
       {/* 1. 巅峰事件回溯法 */}
-      <div className="reveal mb-12 rounded-2xl border border-white/5 bg-white/[0.02] p-6 backdrop-blur-sm sm:p-8">
+      <div className="reveal mb-12 rounded-2xl border border-white/5 bg-white/[0.02] p-6 sm:p-8">
         <div className="mb-6 flex items-center gap-3">
           <span className="font-display text-3xl text-starlight/40">01</span>
           <div>
@@ -94,7 +94,7 @@ export default function EventSelfCheck() {
       </div>
 
       {/* 2. 他人反馈镜像法 */}
-      <div className="reveal mb-12 rounded-2xl border border-white/5 bg-white/[0.02] p-6 backdrop-blur-sm sm:p-8">
+      <div className="reveal mb-12 rounded-2xl border border-white/5 bg-white/[0.02] p-6 sm:p-8">
         <div className="mb-6 flex items-center gap-3">
           <span className="font-display text-3xl text-starlight/40">02</span>
           <div>
@@ -154,7 +154,7 @@ export default function EventSelfCheck() {
       </div>
 
       {/* 3. 低耗能高产出验证法 */}
-      <div className="reveal rounded-2xl border border-white/5 bg-white/[0.02] p-6 backdrop-blur-sm sm:p-8">
+      <div className="reveal rounded-2xl border border-white/5 bg-white/[0.02] p-6 sm:p-8">
         <div className="mb-6 flex items-center gap-3">
           <span className="font-display text-3xl text-starlight/40">03</span>
           <div>

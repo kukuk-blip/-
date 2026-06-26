@@ -11,17 +11,20 @@ interface Star {
 
 /**
  * 星空背景 - 固定定位的 SVG 星点，带闪烁动画
+ * 移动端优化：减少星数 + 禁用大型 blur 星云，降低 GPU 负担
  */
 export default function StarfieldBackground() {
   const stars = useMemo<Star[]>(() => {
     const list: Star[] = [];
-    // 用确定性伪随机，保证刷新位置稳定
     let seed = 7;
     const rand = () => {
       seed = (seed * 9301 + 49297) % 233280;
       return seed / 233280;
     };
-    for (let i = 0; i < 90; i++) {
+    // 移动端 40 颗，桌面端 70 颗（原 90 颗过多导致移动端卡顿）
+    const isMobile = typeof window !== "undefined" && window.innerWidth < 768;
+    const count = isMobile ? 40 : 70;
+    for (let i = 0; i < count; i++) {
       list.push({
         cx: rand() * 100,
         cy: rand() * 100,
@@ -36,28 +39,38 @@ export default function StarfieldBackground() {
 
   return (
     <div className="pointer-events-none fixed inset-0 z-0 overflow-hidden">
+      {/* 星点：使用 CSS 变量驱动 will-change 优化 */}
       <svg
         className="absolute inset-0 h-full w-full"
         preserveAspectRatio="none"
         viewBox="0 0 100 100"
+        aria-hidden="true"
       >
-        {stars.map((s, i) => (
-          <circle
-            key={i}
-            cx={s.cx}
-            cy={s.cy}
-            r={s.r}
-            fill="#f5b942"
-            style={{
-              opacity: s.opacity,
-              animation: `twinkle ${s.duration}s ease-in-out ${s.delay}s infinite`,
-            }}
-          />
-        ))}
+        <g style={{ willChange: "opacity" }}>
+          {stars.map((s, i) => (
+            <circle
+              key={i}
+              cx={s.cx}
+              cy={s.cy}
+              r={s.r}
+              fill="#f5b942"
+              className="animate-twinkle"
+              style={{
+                opacity: s.opacity,
+                animationDelay: `${s.delay}s`,
+                animationDuration: `${s.duration}s`,
+              }}
+            />
+          ))}
+        </g>
       </svg>
-      {/* 远景星云光晕 */}
-      <div className="absolute -left-1/4 top-1/4 h-[60vh] w-[60vh] rounded-full bg-[radial-gradient(circle,rgba(79,195,247,0.07),transparent_70%)] blur-3xl animate-drift" />
-      <div className="absolute right-0 top-1/2 h-[50vh] w-[50vh] rounded-full bg-[radial-gradient(circle,rgba(255,126,159,0.06),transparent_70%)] blur-3xl animate-drift" style={{ animationDelay: "8s" }} />
+
+      {/* 远景星云光晕：仅桌面端启用（blur-3xl 在移动端极耗 GPU） */}
+      <div className="absolute -left-1/4 top-1/4 hidden h-[60vh] w-[60vh] rounded-full bg-[radial-gradient(circle,rgba(79,195,247,0.07),transparent_70%)] blur-3xl animate-drift md:block" />
+      <div
+        className="absolute right-0 top-1/2 hidden h-[50vh] w-[50vh] rounded-full bg-[radial-gradient(circle,rgba(255,126,159,0.06),transparent_70%)] blur-3xl animate-drift md:block"
+        style={{ animationDelay: "8s" }}
+      />
     </div>
   );
 }
