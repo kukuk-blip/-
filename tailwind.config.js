@@ -33,6 +33,8 @@ export default {
         "drift": "drift 30s linear infinite",
         "pulse-glow": "pulseGlow 3s ease-in-out infinite",
         "shimmer": "shimmer 3s ease-in-out infinite",
+        "star-flow": "starFlow 28s linear infinite",
+        "meteor": "meteor 14s linear infinite",
       },
       keyframes: {
         twinkle: {
@@ -55,6 +57,21 @@ export default {
         shimmer: {
           "0%, 100%": { opacity: "0.6" },
           "50%": { opacity: "1" },
+        },
+        // 流动星星：从右上角缓慢飘向左下角，循环
+        starFlow: {
+          "0%": { transform: "translate(110vw, -10vh)", opacity: "0" },
+          "10%": { opacity: "0.9" },
+          "90%": { opacity: "0.7" },
+          "100%": { transform: "translate(-15vw, 110vh)", opacity: "0" },
+        },
+        // 流星：快速划过，带淡入淡出
+        meteor: {
+          "0%": { transform: "translate(110vw, -10vh) rotate(-25deg)", opacity: "0" },
+          "5%": { opacity: "1" },
+          "15%": { opacity: "1" },
+          "25%": { opacity: "0", transform: "translate(-20vw, 80vh) rotate(-25deg)" },
+          "100%": { opacity: "0", transform: "translate(-20vw, 80vh) rotate(-25deg)" },
         },
       },
     },
