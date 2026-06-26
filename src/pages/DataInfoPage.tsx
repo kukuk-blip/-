@@ -40,7 +40,7 @@ const NATIONAL_SOURCES: DataSource[] = [
 const PROVINCE_SOURCES: DataSource[] = [
   { name: "河南省教育考试院", url: "https://www.haeea.cn/", coverage: "报名人数、选科统计、一分一段、投档线", level: "L1", updateFreq: "高考后分3次" },
   { name: "河北省教育考试院", url: "https://www.hebeea.edu.cn/", coverage: "物理 / 历史类选科人数、本科投档", level: "L1", updateFreq: "录取期间" },
-  { name: "山东省教育招生考试院", url: "https://www.sdzs.gov.cn/", coverage: "选科人数、一分一段、专业投档", level: "L1", updateFreq: "录取期间" },
+  { name: "山东省教育招生考试院", url: "https://www.sdzk.cn/", coverage: "选科人数、一分一段、专业投档", level: "L1", updateFreq: "录取期间" },
   { name: "湖北省教育考试院", url: "https://www.hubeizsks.com/", coverage: "3+1+2 选科统计、招生计划", level: "L1", updateFreq: "录取期间" },
   { name: "湖南省教育考试院", url: "https://jyt.hunan.gov.cn/jyt/sjyt/hnsjyksy/", coverage: "科目报考人数、位次统计", level: "L1", updateFreq: "录取期间" },
   { name: "江苏省教育考试院", url: "https://www.jseea.cn/", coverage: "选科组合报名人数、分段统计", level: "L1", updateFreq: "录取期间" },
@@ -67,8 +67,8 @@ const PROVINCE_SOURCES: DataSource[] = [
   { name: "海南省考试局", url: "https://ea.hainan.gov.cn/", coverage: "选科报名统计、投档数据", level: "L1", updateFreq: "录取期间" },
   { name: "新疆教育考试院", url: "https://www.xjzk.gov.cn/", coverage: "高考报名人数、各批次投档", level: "L1", updateFreq: "录取期间" },
   { name: "宁夏教育考试院", url: "https://www.nxjyks.cn/", coverage: "选科报名数据、录取统计", level: "L1", updateFreq: "录取期间" },
-  { name: "青海省教育考试网", url: "https://www.qhksy.org/", coverage: "全省报考人数、招生计划", level: "L1", updateFreq: "录取期间" },
-  { name: "西藏教育考试院", url: "https://zsks.xizang.gov.cn/", coverage: "全区报考统计、录取公示", level: "L1", updateFreq: "录取期间" },
+  { name: "青海省教育考试网", url: "https://www.qhjyks.com/", coverage: "全省报考人数、招生计划", level: "L1", updateFreq: "录取期间" },
+  { name: "西藏教育考试院", url: "https://zsks.edu.xizang.gov.cn/", coverage: "全区报考统计、录取公示", level: "L1", updateFreq: "录取期间" },
 ];
 
 const SUPPLEMENT_SOURCES: DataSource[] = [
