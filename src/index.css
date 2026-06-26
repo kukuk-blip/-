@@ -4,7 +4,7 @@
 @tailwind components;
 @tailwind utilities;
 
-/* ============ 全局基础（Home 天赋星图沿用深色） ============ */
+/* ============ 全局基础 ============ */
 :root {
   font-family: "Noto Sans SC", system-ui, sans-serif;
   line-height: 1.6;
@@ -18,6 +18,7 @@
 
 html { scroll-behavior: smooth; }
 
+/* 默认 body：深色（Home 天赋星图 + 默认未设主题时） */
 body {
   margin: 0;
   background-color: #070a1f;
@@ -27,6 +28,15 @@ body {
     radial-gradient(ellipse 50% 40% at 20% 60%, rgba(255, 126, 159, 0.05), transparent);
   background-attachment: fixed;
   min-height: 100vh;
+  transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+/* 当 <html data-gk-theme> 为浅色主题时，body 整体跟随切换背景与文字色 */
+html[data-gk-theme="morandi"] body,
+html[data-gk-theme="blue"] body {
+  background-image: none;
+  background-color: var(--c-bg);
+  color: var(--c-body);
 }
 
 /* ============ 三套主题语义变量（仅作用于 GaokaoPage 子树） ============

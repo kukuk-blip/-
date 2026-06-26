@@ -188,6 +188,32 @@ const CATEGORY_DEFS: CategoryDef[] = [
   },
 ];
 
+// ============ 院校类型识别（985/211/双一流） ============
+// 基于院校名称匹配（数据中无标签字段，用名称 + 已知名单识别）
+const DOUBLE_FIRST_NAMES = new Set([
+  // 双一流（含原985）
+  "北京大学","清华大学","复旦大学","上海交通大学","浙江大学","中国科学技术大学","南京大学","西安交通大学","武汉大学","华中科技大学","哈尔滨工业大学","中山大学","北京航空航天大学","四川大学","同济大学","东南大学","北京理工大学","中国人民大学","南开大学","天津大学","吉林大学","山东大学","大连理工大学","中南大学","厦门大学","电子科技大学","湖南大学","重庆大学","东北大学","兰州大学","西北农林科技大学","中国海洋大学","国防科技大学","中央民族大学","华南理工大学","华东师范大学","中国农业大学","北京师范大学","西北工业大学","北京理工大学",
+  // 211（非985）
+  "北京交通大学","北京工业大学","北京科技大学","北京化工大学","北京邮电大学","北京林业大学","北京中医药大学","北京外国语大学","中国传媒大学","中央财经大学","对外经济贸易大学","中国政法大学","华北电力大学","中国矿业大学(北京)","中国石油大学(北京)","中国地质大学(北京)","上海大学","上海财经大学","华东理工大学","东华大学","第二军医大学","第四军医大学","苏州大学","南京航空航天大学","南京理工大学","中国矿业大学","河海大学","江南大学","南京农业大学","中国药科大学","南京师范大学","合肥工业大学","安徽大学","南昌大学","福州大学","中国石油大学","郑州大学","河南大学","武汉理工大学","中国地质大学","华中农业大学","华中师范大学","中南财经政法大学","湖南师范大学","暨南大学","华南师范大学","海南大学","广西大学","西南交通大学","西南大学","西南财经大学","贵州大学","云南大学","西藏大学","西北大学","长安大学","陕西师范大学","宁夏大学","青海大学","新疆大学","石河子大学","延边大学","东北师范大学","东北农业大学","东北林业大学","哈尔滨工程大学","辽宁大学","大连海事大学","内蒙古大学","太原理工大学","山西大学","天津医科大学","河北工业大学","华东政法大学",
+  // 双一流二期新增
+  "中国科学院大学","上海科技大学","南方科技大学","首都师范大学","外交学院","中国人民公安大学","中国音乐学院","中央美术学院","中央戏剧学院","上海音乐学院","上海体育学院","南京邮电大学","南京林业大学","南京信息工程大学","南京医科大学","南京中医药大学","浙江工业大学","宁波大学","中国美术学院","安徽大学","福州大学","河南大学","湘潭大学","广州中医药大学","华南农业大学","广州医科大学","广州大学","深圳大学","南方医科大学","成都理工大学","成都中医药大学","西南石油大学","广州海洋大学","天津工业大学","山西大学",
+]);
+
+// 985 院校名单（用于「985」筛选）
+const PROJECT_985_NAMES = new Set([
+  "北京大学","清华大学","复旦大学","上海交通大学","浙江大学","中国科学技术大学","南京大学","西安交通大学","武汉大学","华中科技大学","哈尔滨工业大学","中山大学","北京航空航天大学","四川大学","同济大学","东南大学","北京理工大学","中国人民大学","南开大学","天津大学","吉林大学","山东大学","大连理工大学","中南大学","厦门大学","电子科技大学","湖南大学","重庆大学","东北大学","兰州大学","西北农林科技大学","中国海洋大学","国防科技大学","中央民族大学","华南理工大学","华东师范大学","中国农业大学","北京师范大学","西北工业大学",
+]);
+
+// 判断院校类型
+function getSchoolType(schoolName: string): ("985" | "211" | "双一流" | "普通")[] {
+  const types: ("985" | "211" | "双一流" | "普通")[] = [];
+  if (PROJECT_985_NAMES.has(schoolName)) types.push("985");
+  if (DOUBLE_FIRST_NAMES.has(schoolName)) types.push("211");
+  if (DOUBLE_FIRST_NAMES.has(schoolName)) types.push("双一流");
+  if (types.length === 0) types.push("普通");
+  return types;
+}
+
 // 标准化科目值（将数据中的"再选科目"映射为标准分类）
 function normalizeSubject(raw: string): string {
   if (!raw) return "不限";
@@ -259,6 +285,9 @@ export default function GaokaoPage() {
   const [meta, setMeta] = useState<Meta | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [loadProgress, setLoadProgress] = useState(0);
+  const [loadStage, setLoadStage] = useState("正在连接服务器...");
+  const [loadTime, setLoadTime] = useState(0);
   const [tab, setTab] = useState<"benke" | "zhuanke">("benke");
   const [province, setProvince] = useState<ProvinceInfo>(PROVINCES[0]);
   const [showProvincePanel, setShowProvincePanel] = useState(false);
@@ -275,6 +304,8 @@ export default function GaokaoPage() {
   const [subjectFilter, setSubjectFilter] = useState<Set<string>>(new Set());
   // 特殊类别：多选（艺术类/军警提前批/体育类/师范类/医学类/中外合作/软件类/专项计划）
   const [categoryFilter, setCategoryFilter] = useState<Set<string>>(new Set());
+  // 院校类型筛选：多选（985/211/双一流/普通）
+  const [schoolTypeFilter, setSchoolTypeFilter] = useState<Set<string>>(new Set());
   // 录取最低分范围（双向筛选：最低分下限 ~ 最低分上限）
   const [scoreMin, setScoreMin] = useState<number>(0);
   const [scoreMax, setScoreMax] = useState<number>(800);
@@ -289,30 +320,84 @@ export default function GaokaoPage() {
   const [pageB, setPageB] = useState(1);
   const [pageZ, setPageZ] = useState(1);
 
-  // ============ 加载数据 ============
+  // 排序：字段 + 方向
+  type SortField = "minScore" | "maxScore" | "avgScore" | "minRank" | "default";
+  type SortDir = "asc" | "desc";
+  const [sortField, setSortField] = useState<SortField>("default");
+  const [sortDir, setSortDir] = useState<SortDir>("desc");
+
+  // 冲稳保推荐：输入分数后自动划分三梯度
+  const [showRecommend, setShowRecommend] = useState(false);
+  const [recommendScore, setRecommendScore] = useState<number | "">("");
+
+  // ============ 加载数据（带进度跟踪 + 超时检测） ============
   useEffect(() => {
     let cancelled = false;
+    let timer: ReturnType<typeof setInterval> | null = null;
+    let timeoutTimer: ReturnType<typeof setTimeout> | null = null;
+
+    // 计时器：每秒更新已用时间
+    timer = setInterval(() => {
+      if (!cancelled) setLoadTime(t => t + 1);
+    }, 1000);
+
+    // 超时检测：30 秒未完成视为失败
+    timeoutTimer = setTimeout(() => {
+      if (!cancelled && loading) {
+        setError("数据加载超时，请检查网络后重试");
+        setLoading(false);
+      }
+    }, 30000);
+
     (async () => {
       try {
-        const [dRes, mRes] = await Promise.all([
-          fetch("./gaokao-data.json"),
-          fetch("./gaokao-meta.json"),
-        ]);
-        if (!dRes.ok || !mRes.ok) throw new Error("数据加载失败");
+        setLoadStage("正在连接服务器...");
+        setLoadProgress(10);
+        await new Promise(r => setTimeout(r, 100));
+
+        setLoadStage("正在下载院校数据...");
+        setLoadProgress(30);
+        const dRes = await fetch("./gaokao-data.json");
+        if (!dRes.ok) throw new Error(`数据文件请求失败（HTTP ${dRes.status}）`);
+
+        setLoadStage("正在下载元信息...");
+        setLoadProgress(60);
+        const mRes = await fetch("./gaokao-meta.json");
+        if (!mRes.ok) throw new Error(`元信息请求失败（HTTP ${mRes.status}）`);
+
+        setLoadStage("正在解析数据...");
+        setLoadProgress(80);
         const d = await dRes.json();
         const m = await mRes.json();
+
+        setLoadStage("正在初始化界面...");
+        setLoadProgress(95);
         if (cancelled) return;
         setData(d);
         setMeta(m);
         setScoreMin(m.benkeScoreRange.min);
         setScoreMax(m.benkeScoreRange.max);
+        setLoadProgress(100);
+        setLoadStage("加载完成");
       } catch (e: any) {
-        setError(e.message || "加载失败");
+        if (!cancelled) {
+          const msg = e instanceof TypeError && e.message.includes("Failed to fetch")
+            ? "网络连接失败，请检查网络后重试"
+            : (e.message || "数据加载失败");
+          setError(msg);
+        }
       } finally {
         if (!cancelled) setLoading(false);
+        if (timer) clearInterval(timer);
+        if (timeoutTimer) clearTimeout(timeoutTimer);
       }
     })();
-    return () => { cancelled = true; };
+
+    return () => {
+      cancelled = true;
+      if (timer) clearInterval(timer);
+      if (timeoutTimer) clearTimeout(timeoutTimer);
+    };
   }, []);
 
   // 切换 tab 时重置分数范围
@@ -395,6 +480,12 @@ export default function GaokaoPage() {
       }
       if (!matched) return false;
     }
+    // 院校类型筛选（985/211/双一流/普通）
+    if (schoolTypeFilter.size > 0) {
+      const types = getSchoolType(r[2]);
+      const matched = types.some(t => schoolTypeFilter.has(t));
+      if (!matched) return false;
+    }
     // 录取最低分范围（双向）
     if (r[10] < scoreMin || r[10] > scoreMax) return false;
     // 用户参考分数筛选
@@ -426,6 +517,12 @@ export default function GaokaoPage() {
       }
       if (!matched) return false;
     }
+    // 院校类型筛选（985/211/双一流/普通）—— 专科批 r[2] 同样是院校名称
+    if (schoolTypeFilter.size > 0) {
+      const types = getSchoolType(r[2]);
+      const matched = types.some(t => schoolTypeFilter.has(t));
+      if (!matched) return false;
+    }
     if (r[8] < scoreMin || r[8] > scoreMax) return false;
     if (onlyAboveUserScore && userScore !== "" && r[8] > Number(userScore)) return false;
     if (talentFilter !== "all") {
@@ -435,8 +532,52 @@ export default function GaokaoPage() {
     return true;
   };
 
-  const filteredB = useMemo(() => data?.b.filter(filterBenke) ?? [], [data, searchSchool, searchMajor, tuitionFilter, tuitionRangeEnabled, tuitionMin, tuitionMax, subjectFilter, categoryFilter, scoreMin, scoreMax, onlyAboveUserScore, userScore, talentFilter]);
-  const filteredZ = useMemo(() => data?.z.filter(filterZhuanke) ?? [], [data, searchSchool, searchMajor, tuitionFilter, tuitionRangeEnabled, tuitionMin, tuitionMax, subjectFilter, categoryFilter, scoreMin, scoreMax, onlyAboveUserScore, userScore, talentFilter]);
+  const filteredB = useMemo(() => {
+    const arr = data?.b.filter(filterBenke) ?? [];
+    if (sortField === "default") return arr;
+    return [...arr].sort((a, b) => {
+      const idx = sortField === "minScore" ? 10 : sortField === "maxScore" ? 8 : sortField === "avgScore" ? 9 : 11;
+      const va = a[idx], vb = b[idx];
+      if (va == null && vb == null) return 0;
+      if (va == null) return 1;
+      if (vb == null) return -1;
+      return sortDir === "desc" ? Number(vb) - Number(va) : Number(va) - Number(vb);
+    });
+  }, [data, searchSchool, searchMajor, tuitionFilter, tuitionRangeEnabled, tuitionMin, tuitionMax, subjectFilter, categoryFilter, schoolTypeFilter, scoreMin, scoreMax, onlyAboveUserScore, userScore, talentFilter, sortField, sortDir]);
+
+  const filteredZ = useMemo(() => {
+    const arr = data?.z.filter(filterZhuanke) ?? [];
+    if (sortField === "default") return arr;
+    return [...arr].sort((a, b) => {
+      const idx = sortField === "minScore" ? 8 : sortField === "maxScore" ? 6 : sortField === "avgScore" ? 7 : 9;
+      const va = a[idx], vb = b[idx];
+      if (va == null && vb == null) return 0;
+      if (va == null) return 1;
+      if (vb == null) return -1;
+      return sortDir === "desc" ? Number(vb) - Number(va) : Number(va) - Number(vb);
+    });
+  }, [data, searchSchool, searchMajor, tuitionFilter, tuitionRangeEnabled, tuitionMin, tuitionMax, subjectFilter, categoryFilter, schoolTypeFilter, scoreMin, scoreMax, onlyAboveUserScore, userScore, talentFilter, sortField, sortDir]);
+
+  // 冲稳保推荐：基于用户分数划分冲刺/稳妥/保底三梯度
+  const recommendation = useMemo(() => {
+    if (!data || recommendScore === "" || !showRecommend) return null;
+    const score = Number(recommendScore);
+    if (!Number.isFinite(score) || score < 100 || score > 800) return null;
+
+    // 梯度划分规则：
+    // 冲刺：录取最低分 = 用户分数 ~ 用户分数+15（高于用户分数 0-15 分）
+    // 稳妥：录取最低分 = 用户分数-15 ~ 用户分数（低于用户分数 0-15 分）
+    // 保底：录取最低分 = 用户分数-30 ~ 用户分数-15（低于用户分数 15-30 分）
+    const range = (rows: BenkeRow[], min: number, max: number) =>
+      rows.filter(r => r[10] != null && r[10] >= min && r[10] <= max).slice(0, 20);
+
+    const benke = data.b;
+    return {
+      rush: range(benke, score, score + 15),      // 冲刺
+      stable: range(benke, score - 15, score - 1), // 稳妥
+      safe: range(benke, score - 30, score - 16),  // 保底
+    };
+  }, [data, recommendScore, showRecommend]);
 
   const pagedB = filteredB.slice((pageB - 1) * PAGE_SIZE, pageB * PAGE_SIZE);
   const pagedZ = filteredZ.slice((pageZ - 1) * PAGE_SIZE, pageZ * PAGE_SIZE);
@@ -452,6 +593,7 @@ export default function GaokaoPage() {
     setTuitionMax(tuitionRange.max);
     setSubjectFilter(new Set());
     setCategoryFilter(new Set());
+    setSchoolTypeFilter(new Set());
     setTalentFilter("all");
     setOnlyAboveUserScore(false);
     if (meta) {
@@ -465,29 +607,108 @@ export default function GaokaoPage() {
 
   const hasActiveFilters = !!(searchSchool || searchMajor || tuitionFilter !== "all" ||
     tuitionRangeEnabled || subjectFilter.size > 0 || categoryFilter.size > 0 ||
+    schoolTypeFilter.size > 0 ||
     talentFilter !== "all" || onlyAboveUserScore);
 
   // ============ 渲染 ============
   if (loading) {
+    const isSlow = loadTime > 10;
     return (
-      <div className="relative flex min-h-screen items-center justify-center bg-[var(--c-bg)]">
-        <div className="text-center">
-          <Loader2 className="mx-auto h-10 w-10 animate-spin text-[var(--c-primary)]" />
-          <p className="mt-4 text-[var(--c-secondary)]">正在加载高考数据...</p>
-          <p className="mt-1 text-xs text-[var(--c-secondary-50)]">数据文件较大（约 4MB），请稍候</p>
-        </div>
+      <div className="relative flex min-h-screen flex-col bg-[var(--c-bg)]">
+        {/* 顶部标题栏（站点介绍） */}
+        <header className="border-b border-[var(--c-border)] bg-[var(--c-card)] px-4 py-4 md:px-6">
+          <div className="mx-auto max-w-[1200px]">
+            <h1 className="font-display text-lg text-[var(--c-title)] sm:text-xl">
+              高考志愿 <span className="italic text-[var(--c-primary)]">导览</span>
+            </h1>
+            <p className="mt-1 text-xs text-[var(--c-secondary)]">
+              河南物理类录取数据查询 · 覆盖 2,200+ 院校 · 28,000+ 专业记录
+            </p>
+          </div>
+        </header>
+
+        <main className="mx-auto flex w-full max-w-[1200px] flex-1 flex-col px-4 py-6 md:px-6">
+          {/* 加载状态卡片 */}
+          <div className="rounded-lg border border-[var(--c-border)] bg-[var(--c-card)] p-6">
+            <div className="flex items-center gap-3">
+              <Loader2 className="h-6 w-6 animate-spin text-[var(--c-primary)]" />
+              <div className="flex-1">
+                <p className="text-sm text-[var(--c-title)]">{loadStage}</p>
+                <p className="text-xs text-[var(--c-secondary)]">
+                  {loadTime > 0 ? `已等待 ${loadTime} 秒` : "正在加载..."}
+                  {!isSlow && " · 预计 10-20 秒"}
+                  {isSlow && " · 加载较慢，请耐心等待或检查网络"}
+                </p>
+              </div>
+              <span className="font-mono text-sm text-[var(--c-primary)]">{loadProgress}%</span>
+            </div>
+            {/* 线性进度条 */}
+            <div className="mt-3 h-1.5 w-full overflow-hidden rounded-full bg-[var(--c-block-30)]">
+              <div
+                className="h-full rounded-full bg-[var(--c-primary)] transition-all duration-300"
+                style={{ width: `${loadProgress}%` }}
+              />
+            </div>
+          </div>
+
+          {/* 骨架屏：模拟表格布局 */}
+          <div className="mt-4 space-y-2">
+            {/* 骨架行 */}
+            {[0, 1, 2, 3, 4, 5].map(i => (
+              <div key={i} className="flex items-center gap-3 rounded-lg border border-[var(--c-border)] bg-[var(--c-card)] p-3">
+                <div className="h-3 w-10 rounded bg-[var(--c-block-30)]" />
+                <div className="h-3 w-24 rounded bg-[var(--c-block-30)]" />
+                <div className="h-3 flex-1 rounded bg-[var(--c-block-30)]" />
+                <div className="h-3 w-16 rounded bg-[var(--c-block-30)]" />
+                <div className="h-3 w-12 rounded bg-[var(--c-block-30)]" />
+              </div>
+            ))}
+          </div>
+
+          {/* 功能亮点 */}
+          <div className="mt-6 grid grid-cols-1 gap-3 sm:grid-cols-3">
+            {[
+              { icon: "筛选", title: "多维筛选", desc: "分数/位次/科目/学费/院校类型" },
+              { icon: "推荐", title: "冲稳保推荐", desc: "输入分数智能匹配三梯度院校" },
+              { icon: "导出", title: "数据导出", desc: "筛选结果一键导出 CSV" },
+            ].map((f, i) => (
+              <div key={i} className="rounded-lg border border-[var(--c-border)] bg-[var(--c-card)] p-4">
+                <div className="text-sm font-medium text-[var(--c-title)]">{f.title}</div>
+                <div className="mt-1 text-xs text-[var(--c-secondary)]">{f.desc}</div>
+              </div>
+            ))}
+          </div>
+        </main>
       </div>
     );
   }
 
   if (error) {
     return (
-      <div className="relative flex min-h-screen items-center justify-center bg-[var(--c-bg)]">
-        <div className="text-center">
-          <p className="text-[var(--c-error)]">{error}</p>
-          <button onClick={() => location.reload()} className="mt-4 rounded-lg bg-[var(--c-primary)] px-4 py-2 text-white transition hover:bg-[var(--c-primary)]">
-            重试
-          </button>
+      <div className="relative flex min-h-screen items-center justify-center bg-[var(--c-bg)] px-4">
+        <div className="max-w-md rounded-lg border border-[var(--c-border)] bg-[var(--c-card)] p-6 text-center">
+          <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-[var(--c-primary-15)]">
+            <X className="h-6 w-6 text-[var(--c-error)]" />
+          </div>
+          <h2 className="text-base text-[var(--c-title)]">数据加载失败</h2>
+          <p className="mt-2 text-sm text-[var(--c-secondary)]">{error}</p>
+          <div className="mt-4 space-y-2">
+            <button
+              onClick={() => location.reload()}
+              className="w-full rounded-lg bg-[var(--c-primary)] px-4 py-2.5 text-sm text-[var(--c-hover-text)] transition hover:opacity-90"
+            >
+              重新加载
+            </button>
+            <button
+              onClick={() => { setError(null); setLoading(true); setLoadProgress(0); }}
+              className="w-full rounded-lg border border-[var(--c-border)] px-4 py-2.5 text-sm text-[var(--c-secondary)] transition hover:border-[var(--c-primary)] hover:text-[var(--c-primary)]"
+            >
+              重试加载
+            </button>
+          </div>
+          <p className="mt-4 text-xs text-[var(--c-secondary-50)]">
+            提示：若多次失败，请检查网络连接或清除浏览器缓存后重试
+          </p>
         </div>
       </div>
     );
@@ -541,6 +762,89 @@ export default function GaokaoPage() {
         {/* 天赋推荐横幅 */}
         <TalentBanner meta={meta} talentFilter={talentFilter} setTalentFilter={setTalentFilter} />
 
+        {/* 冲稳保智能推荐 */}
+        <section className="mb-6 rounded-lg border border-[var(--c-border)] bg-[var(--c-card)] p-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Target className="h-4 w-4 text-[var(--c-primary)]" />
+              <h2 className="text-sm font-medium text-[var(--c-title)]">冲稳保智能推荐</h2>
+            </div>
+            <button
+              onClick={() => setShowRecommend(s => !s)}
+              className="text-xs text-[var(--c-secondary)] transition hover:text-[var(--c-primary)]"
+            >
+              {showRecommend ? "收起" : "展开"}
+            </button>
+          </div>
+          {showRecommend && (
+            <div className="mt-3">
+              <div className="flex items-center gap-2">
+                <label className="text-xs text-[var(--c-secondary)]">我的分数：</label>
+                <input
+                  type="number"
+                  value={recommendScore}
+                  onChange={e => setRecommendScore(e.target.value === "" ? "" : Number(e.target.value))}
+                  placeholder="输入分数"
+                  className="w-24 rounded-md border border-[var(--c-border)] bg-[var(--c-card)] px-2 py-1 text-sm text-[var(--c-title)]"
+                />
+                <span className="text-xs text-[var(--c-secondary-50)]">基于本科批数据推荐</span>
+              </div>
+              {recommendation && (
+                <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-3">
+                  {/* 冲刺 */}
+                  <div className="rounded-md border border-[var(--c-error)]/30 p-3" style={{ background: "color-mix(in srgb, var(--c-error) 5%, transparent)" }}>
+                    <div className="mb-2 flex items-center justify-between">
+                      <span className="text-xs font-medium text-[var(--c-error)]">冲刺</span>
+                      <span className="text-[10px] text-[var(--c-secondary-50)]">{recommendation.rush.length} 所</span>
+                    </div>
+                    <div className="space-y-1">
+                      {recommendation.rush.slice(0, 8).map((r, i) => (
+                        <div key={i} className="flex items-center justify-between text-xs">
+                          <span className="truncate text-[var(--c-body)]">{r[2]}</span>
+                          <span className="ml-2 shrink-0 font-mono text-[var(--c-error)]">{r[10]}</span>
+                        </div>
+                      ))}
+                      {recommendation.rush.length === 0 && <p className="text-xs text-[var(--c-secondary-50)]">该分数段无冲刺院校</p>}
+                    </div>
+                  </div>
+                  {/* 稳妥 */}
+                  <div className="rounded-md border border-[var(--c-warning)]/30 p-3" style={{ background: "color-mix(in srgb, var(--c-warning) 5%, transparent)" }}>
+                    <div className="mb-2 flex items-center justify-between">
+                      <span className="text-xs font-medium text-[var(--c-warning)]">稳妥</span>
+                      <span className="text-[10px] text-[var(--c-secondary-50)]">{recommendation.stable.length} 所</span>
+                    </div>
+                    <div className="space-y-1">
+                      {recommendation.stable.slice(0, 8).map((r, i) => (
+                        <div key={i} className="flex items-center justify-between text-xs">
+                          <span className="truncate text-[var(--c-body)]">{r[2]}</span>
+                          <span className="ml-2 shrink-0 font-mono text-[var(--c-warning)]">{r[10]}</span>
+                        </div>
+                      ))}
+                      {recommendation.stable.length === 0 && <p className="text-xs text-[var(--c-secondary-50)]">该分数段无稳妥院校</p>}
+                    </div>
+                  </div>
+                  {/* 保底 */}
+                  <div className="rounded-md border border-[var(--c-success)]/30 p-3" style={{ background: "color-mix(in srgb, var(--c-success) 5%, transparent)" }}>
+                    <div className="mb-2 flex items-center justify-between">
+                      <span className="text-xs font-medium text-[var(--c-success)]">保底</span>
+                      <span className="text-[10px] text-[var(--c-secondary-50)]">{recommendation.safe.length} 所</span>
+                    </div>
+                    <div className="space-y-1">
+                      {recommendation.safe.slice(0, 8).map((r, i) => (
+                        <div key={i} className="flex items-center justify-between text-xs">
+                          <span className="truncate text-[var(--c-body)]">{r[2]}</span>
+                          <span className="ml-2 shrink-0 font-mono text-[var(--c-success)]">{r[10]}</span>
+                        </div>
+                      ))}
+                      {recommendation.safe.length === 0 && <p className="text-xs text-[var(--c-secondary-50)]">该分数段无保底院校</p>}
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+        </section>
+
         {/* 筛选面板切换 */}
         <div className="mb-4 flex items-center justify-between">
           <div className="flex items-center gap-2">
@@ -583,6 +887,7 @@ export default function GaokaoPage() {
             tuitionMax={tuitionMax} setTuitionMax={(v) => { setTuitionMax(v); setPageB(1); setPageZ(1); }}
             subjectFilter={subjectFilter} setSubjectFilter={(v) => { setSubjectFilter(v); setPageB(1); setPageZ(1); }}
             categoryFilter={categoryFilter} setCategoryFilter={(v) => { setCategoryFilter(v); setPageB(1); setPageZ(1); }}
+            schoolTypeFilter={schoolTypeFilter} setSchoolTypeFilter={(v) => { setSchoolTypeFilter(v); setPageB(1); setPageZ(1); }}
             scoreMin={scoreMin} setScoreMin={(v) => { setScoreMin(v); setPageB(1); setPageZ(1); }}
             scoreMax={scoreMax} setScoreMax={(v) => { setScoreMax(v); setPageB(1); setPageZ(1); }}
             userScore={userScore} setUserScore={(v) => { setUserScore(v); setPageB(1); setPageZ(1); }}
@@ -601,6 +906,43 @@ export default function GaokaoPage() {
           </TabButton>
         </div>
 
+        {/* 排序控制 */}
+        <div className="mb-3 flex items-center gap-2 overflow-x-auto pb-1">
+          <span className="text-xs text-[var(--c-secondary)] shrink-0">排序：</span>
+          {([
+            { key: "default", label: "默认" },
+            { key: "minScore", label: "最低分" },
+            { key: "maxScore", label: "最高分" },
+            { key: "avgScore", label: "平均分" },
+            { key: "minRank", label: "位次" },
+          ] as { key: SortField; label: string }[]).map(opt => {
+            const active = sortField === opt.key;
+            return (
+              <button
+                key={opt.key}
+                onClick={() => {
+                  if (active) {
+                    setSortDir(d => d === "desc" ? "asc" : "desc");
+                  } else {
+                    setSortField(opt.key);
+                    setSortDir(opt.key === "minRank" ? "asc" : "desc");
+                  }
+                }}
+                className={`flex items-center gap-1 rounded-md px-2.5 py-1 text-xs transition shrink-0 ${
+                  active
+                    ? "bg-[var(--c-primary)] text-[var(--c-hover-text)]"
+                    : "border border-[var(--c-border)] text-[var(--c-secondary)] hover:border-[var(--c-primary)] hover:text-[var(--c-primary)]"
+                }`}
+              >
+                {opt.label}
+                {active && opt.key !== "default" && (
+                  <span className="text-[10px]">{sortDir === "desc" ? "↓" : "↑"}</span>
+                )}
+              </button>
+            );
+          })}
+        </div>
+
         {/* 表格 */}
         {tab === "benke" ? (
           <BenkeTable rows={pagedB} talentFilter={talentFilter} meta={meta} />
@@ -616,11 +958,38 @@ export default function GaokaoPage() {
         )}
       </main>
 
-      <footer className="relative z-10 border-t border-[var(--c-border)] py-6 text-center">
-        <p className="font-display text-sm text-[var(--c-secondary-50)]">高考志愿导览 · Gaokao Navigator</p>
-        <p className="mt-1 text-xs text-[var(--c-secondary-50)]">
-          数据源自《2024-2025 河南物理类录取统计》· 学费为估算区间仅供参考
-        </p>
+      <footer className="relative z-10 border-t border-[var(--c-border)] bg-[var(--c-card)] py-6">
+        <div className="mx-auto max-w-[1200px] px-4 md:px-6">
+          <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+            <div>
+              <p className="font-display text-sm text-[var(--c-title)]">高考志愿导览 · Gaokao Navigator</p>
+              <p className="mt-1 text-xs text-[var(--c-secondary)]">
+                数据源自《2024-2025 河南物理类录取统计》及《2026 河南招生考试之友》
+              </p>
+            </div>
+            <div className="space-y-1 text-xs text-[var(--c-secondary)]">
+              <div className="flex items-center gap-2">
+                <span className="text-[var(--c-secondary-50)]">数据年份：</span>
+                <span>2024-2025</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-[var(--c-secondary-50)]">覆盖范围：</span>
+                <span>{meta?.schoolCount.toLocaleString() ?? "-"} 所院校 · {meta?.benkeCount.toLocaleString() ?? "-"} 个本科专业 · {meta?.zhuankeCount.toLocaleString() ?? "-"} 个专科专业组</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-[var(--c-secondary-50)]">学费说明：</span>
+                <span>学费为基于河南高校通用标准的估算区间，仅供参考</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-[var(--c-secondary-50)]">统计口径：</span>
+                <span>河南省物理类录取数据，含普通批、专项计划、中外合作等</span>
+              </div>
+            </div>
+          </div>
+          <div className="mt-4 border-t border-[var(--c-border-soft)] pt-4 text-xs text-[var(--c-secondary-50)]">
+            <p>⚠️ 本站数据仅供参考，最终录取请以各省教育考试院官方公告为准。如发现数据异常，请以官方原始文件为准。</p>
+          </div>
+        </div>
       </footer>
     </div>
   );
@@ -861,6 +1230,7 @@ function FilterPanel(props: {
   tuitionMax: number; setTuitionMax: (v: number) => void;
   subjectFilter: Set<string>; setSubjectFilter: (v: Set<string>) => void;
   categoryFilter: Set<string>; setCategoryFilter: (v: Set<string>) => void;
+  schoolTypeFilter: Set<string>; setSchoolTypeFilter: (v: Set<string>) => void;
   scoreMin: number; setScoreMin: (v: number) => void;
   scoreMax: number; setScoreMax: (v: number) => void;
   userScore: number | ""; setUserScore: (v: number | "") => void;
@@ -1071,6 +1441,54 @@ function FilterPanel(props: {
               {Array.from(props.categoryFilter).map(k => CATEGORY_DEFS.find(c => c.key === k)?.desc).filter(Boolean).join(" · ")}
             </p>
           )}
+        </div>
+
+        {/* 院校类型筛选（985/211/双一流/普通） */}
+        <div className="md:col-span-2 lg:col-span-3">
+          <div className="mb-2 flex items-center gap-1.5 text-[var(--c-secondary)]">
+            <School className="h-3.5 w-3.5" />
+            <span className="text-xs font-medium">院校类型</span>
+            {props.schoolTypeFilter.size > 0 && (
+              <button
+                onClick={() => props.setSchoolTypeFilter(new Set())}
+                className="ml-2 text-[var(--c-secondary-70)] hover:text-[var(--c-error)]"
+              >
+                清除
+              </button>
+            )}
+          </div>
+          <div className="flex flex-wrap gap-1.5">
+            {([
+              { key: "985", label: "985", color: "var(--c-error)" },
+              { key: "211", label: "211", color: "var(--c-warning)" },
+              { key: "双一流", label: "双一流", color: "var(--c-primary)" },
+              { key: "普通", label: "普通", color: "var(--c-secondary)" },
+            ] as const).map(t => {
+              const active = props.schoolTypeFilter.has(t.key);
+              return (
+                <button
+                  key={t.key}
+                  onClick={() => {
+                    const next = new Set(props.schoolTypeFilter);
+                    if (active) next.delete(t.key);
+                    else next.add(t.key);
+                    props.setSchoolTypeFilter(next);
+                  }}
+                  className="rounded-md px-2.5 py-1 text-xs transition"
+                  style={active ? { background: t.color, color: "var(--c-hover-text)" } : {
+                    background: "transparent",
+                    border: "1px solid var(--c-border)",
+                    color: "var(--c-secondary)",
+                  }}
+                >
+                  {t.label}
+                </button>
+              );
+            })}
+          </div>
+          <p className="mt-1.5 text-[10px] text-[var(--c-secondary-50)]">
+            基于院校名称与已知名单匹配，仅供标识参考。
+          </p>
         </div>
 
         {/* 学费档级 */}
