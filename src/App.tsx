@@ -14,10 +14,18 @@ export default function App() {
     return () => window.removeEventListener("hashchange", onHash);
   }, []);
 
-  // 高考志愿导览路由
-  if (route.startsWith("#/gaokao")) {
-    return <GaokaoPage />;
+  // 兼容旧链接：#/gaokao 重定向到首页（高考志愿现为首页）
+  useEffect(() => {
+    if (route.startsWith("#/gaokao")) {
+      window.location.replace("#/");
+    }
+  }, [route]);
+
+  // 天赋星图路由
+  if (route.startsWith("#/talent")) {
+    return <Home />;
   }
 
-  return <Home />;
+  // 默认首页：高考志愿导览
+  return <GaokaoPage />;
 }

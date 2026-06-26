@@ -508,7 +508,7 @@ export default function GaokaoPage() {
           <div className="flex items-center gap-2">
             <ThemeToggle theme={theme} onChange={setTheme} compact />
             <a
-              href="https://kukuk-blip.github.io/-/#/"
+              href="https://kukuk-blip.github.io/-/#/talent"
               target="_blank"
               rel="noopener"
               className="flex items-center gap-1 text-xs text-[var(--c-secondary)] transition hover:text-[var(--c-primary)]"
@@ -813,7 +813,7 @@ function TalentBanner({ meta, talentFilter, setTalentFilter }: {
           <h3 className="font-display text-base text-[var(--c-title)]">天赋匹配 · 专业推荐</h3>
           <p className="mt-0.5 text-xs text-[var(--c-secondary)]">
             选择你的天赋类型，高亮匹配的专业。未测天赋？
-            <a href="https://kukuk-blip.github.io/-/#/" target="_blank" rel="noopener" className="text-[var(--c-primary)] hover:underline">前往天赋测试 →</a>
+            <a href="https://kukuk-blip.github.io/-/#/talent" target="_blank" rel="noopener" className="text-[var(--c-primary)] hover:underline">前往天赋测试 →</a>
           </p>
           <div className="mt-3 flex flex-wrap gap-2">
             <button
