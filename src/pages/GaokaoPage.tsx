@@ -3,7 +3,7 @@ import { useReveal } from "@/hooks/useReveal";
 import {
   Search, Filter, X, GraduationCap, BookOpen,
   TrendingUp, Coins, ClipboardList, School, ChevronLeft,
-  ChevronRight, Loader2, Sparkles, ExternalLink, MapPin, Database, Target, Download,
+  ChevronRight, Loader2, Sparkles, MapPin, Database, Target, Download,
 } from "lucide-react";
 import ThemeToggle, { useGkTheme } from "@/components/ThemeToggle";
 
@@ -713,13 +713,24 @@ export default function GaokaoPage() {
           <div className="flex items-center gap-2">
             <ThemeToggle theme={theme} onChange={setTheme} compact />
             <a
-              href="https://kukuk-blip.github.io/-/#/talent"
-              target="_blank"
-              rel="noopener"
-              className="flex items-center gap-1 text-xs text-[var(--c-secondary)] transition hover:text-[var(--c-primary)]"
+              href="#/talent-test"
+              className="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium transition-all"
+              style={{
+                background: "var(--c-primary-15)",
+                border: "1px solid var(--c-primary-30)",
+                color: "var(--c-primary)",
+              }}
+              onMouseEnter={e => {
+                e.currentTarget.style.background = "var(--c-primary)";
+                e.currentTarget.style.color = "var(--c-hover-text)";
+              }}
+              onMouseLeave={e => {
+                e.currentTarget.style.background = "var(--c-primary-15)";
+                e.currentTarget.style.color = "var(--c-primary)";
+              }}
             >
-              <ExternalLink className="h-3 w-3" />
-              <span className="hidden sm:inline">天赋测试</span>
+              <Sparkles className="h-3.5 w-3.5" />
+              <span className="hidden sm:inline">选科测评</span>
             </a>
           </div>
         </div>

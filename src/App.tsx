@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import Home from "@/pages/Home";
 import GaokaoPage from "@/pages/GaokaoPage";
+import TalentTest from "@/pages/TalentTest";
 
 export default function App() {
   const [route, setRoute] = useState<string>(() => window.location.hash || "#/");
@@ -20,6 +21,11 @@ export default function App() {
       window.location.replace("#/");
     }
   }, [route]);
+
+  // 天赋星图路由（注意：talent-test 不能被 talent 前缀匹配，需先判断）
+  if (route.startsWith("#/talent-test")) {
+    return <TalentTest />;
+  }
 
   // 天赋星图路由
   if (route.startsWith("#/talent")) {
