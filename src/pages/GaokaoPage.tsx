@@ -3,8 +3,9 @@ import { useReveal } from "@/hooks/useReveal";
 import {
   Search, Filter, X, GraduationCap, BookOpen,
   TrendingUp, Coins, ClipboardList, School, ChevronLeft,
-  ChevronRight, Loader2, Sparkles, ExternalLink, MapPin, Database, Target,
+  ChevronRight, Loader2, Sparkles, ExternalLink, MapPin, Database, Target, Download,
 } from "lucide-react";
+import ThemeToggle, { useGkTheme } from "@/components/ThemeToggle";
 
 // ============ 类型定义 ============
 // 本科批: [排名, 院校代号, 院校名称, 专业组代码, 再选科目, 专业代码, 专业名称,
@@ -45,13 +46,51 @@ interface Meta {
 }
 
 const TUITION_LABELS: Record<number, { label: string; color: string }> = {
-  1: { label: "普通", color: "#A8B5A0" },
-  2: { label: "医学类", color: "#8FAABE" },
-  3: { label: "软件/艺术类", color: "#C9A688" },
-  4: { label: "中外合作", color: "#D4B5B0" },
+  1: { label: "普通", color: "var(--c-success)" },
+  2: { label: "医学类", color: "var(--c-primary)" },
+  3: { label: "软件/艺术类", color: "var(--c-warning)" },
+  4: { label: "中外合作", color: "var(--c-error)" },
 };
 
 const PAGE_SIZE = 50;
+
+// 导出筛选结果为 CSV
+function exportCSV(rows: BenkeRow[] | ZhuankeRow[], type: "benke" | "zhuanke") {
+  const headers = type === "benke"
+    ? ["排名","院校代号","院校名称","专业组代码","再选科目","专业代码","专业名称","录取人数","最高分","平均分","最低分","最低分位次","专业组投档最低分","专业组投档最低分位次","学费档"]
+    : ["排名","院校代号","院校名称","专业组代码","再选科目","录取人数","最高分","平均分","最低分","最低分位次","包含专业","学费档"];
+
+  const escapeCell = (v: unknown): string => {
+    const s = String(v ?? "");
+    // CSV 转义：含逗号/引号/换行的字段用双引号包裹，内部引号双写
+    if (/[",\n\r]/.test(s)) return `"${s.replace(/"/g, '""')}"`;
+    return s;
+  };
+
+  const lines = [headers.map(escapeCell).join(",")];
+  if (type === "benke") {
+    for (const r of rows as BenkeRow[]) {
+      const cells = [r[0], r[1], r[2], r[3], r[4], r[5], r[6], r[7], r[8], r[9], r[10], r[11], r[12], r[13], r[18]];
+      lines.push(cells.map(escapeCell).join(","));
+    }
+  } else {
+    for (const r of rows as ZhuankeRow[]) {
+      const cells = [r[0], r[1], r[2], r[3], r[4], r[5], r[6], r[7], r[8], r[9], r[10], r[15]];
+      lines.push(cells.map(escapeCell).join(","));
+    }
+  }
+
+  const csv = "\uFEFF" + lines.join("\n"); // BOM 保证 Excel 正确识别中文
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `高考志愿_${type === "benke" ? "本科批" : "专科批"}_${new Date().toISOString().slice(0, 10)}.csv`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
 
 // ============ 选科要求映射 ============
 // 数据中"再选科目"字段值 → 标准化分类
@@ -71,13 +110,13 @@ const SUBJECT_ALIASES: Record<string, string> = {
 
 // 选科筛选选项（与用户要求对齐）
 const SUBJECT_OPTIONS = [
-  { key: "不限", label: "不限", color: "#8C8780" },
-  { key: "物理", label: "物理", color: "#8FAABE" },
-  { key: "化学", label: "化学", color: "#A8B5A0" },
-  { key: "政治", label: "政治", color: "#C9A688" },
-  { key: "生物", label: "生物", color: "#8FAABE" },
-  { key: "地理", label: "地理", color: "#D4B5B0" },
-  { key: "历史", label: "历史", color: "#B58383" },
+  { key: "不限", label: "不限", color: "var(--c-secondary)" },
+  { key: "物理", label: "物理", color: "var(--c-primary)" },
+  { key: "化学", label: "化学", color: "var(--c-success)" },
+  { key: "政治", label: "政治", color: "var(--c-warning)" },
+  { key: "生物", label: "生物", color: "var(--c-primary)" },
+  { key: "地理", label: "地理", color: "var(--c-error)" },
+  { key: "历史", label: "历史", color: "var(--c-error)" },
 ];
 
 // ============ 特殊类别匹配（基于 2026 招生考试之友分类）============
@@ -94,56 +133,56 @@ const CATEGORY_DEFS: CategoryDef[] = [
   {
     key: "art",
     label: "艺术类",
-    color: "#D4B5B0",
+    color: "var(--c-error)",
     desc: "音乐/美术/设计/戏剧/影视/舞蹈等",
     match: (_s, m) => /音乐|舞蹈|美术|绘画|雕塑|设计学|视觉传达|动画|戏剧|影视|摄影|播音|表演|录音|作曲|书法|艺术|戏曲|影视学/.test(m),
   },
   {
     key: "military",
     label: "军警提前批",
-    color: "#B58383",
+    color: "var(--c-error)",
     desc: "军事/公安/司法/警察类院校",
     match: (s, m) => /军事|公安|警察|司法|警官|军校|国防|武装|边防|消防|警犬|侦查/.test(s + m),
   },
   {
     key: "sport",
     label: "体育类",
-    color: "#A8B5A0",
+    color: "var(--c-success)",
     desc: "体育教育/运动训练等",
     match: (_s, m) => /体育|运动训练|运动康复|社会体育|休闲体育|武术与民族传统/.test(m),
   },
   {
     key: "teacher",
     label: "师范类",
-    color: "#8FAABE",
+    color: "var(--c-primary)",
     desc: "师范/教育类专业",
     match: (s, m) => /师范|教育|学前|小学教育|学科教育|公费师范/.test(s + m),
   },
   {
     key: "medical",
     label: "医学类",
-    color: "#8FAABE",
+    color: "var(--c-primary)",
     desc: "临床/口腔/中医/护理等",
     match: (_s, m) => /临床医学|口腔医学|中医|中药|药学|护理|医学|预防医学|影像|检验|康复治疗/.test(m),
   },
   {
     key: "cooperation",
     label: "中外合作",
-    color: "#D4B5B0",
+    color: "var(--c-error)",
     desc: "中外合作办学/国际学院",
     match: (s, m) => /中外合作|国际学院|联办|莫斯科|利莫瑞克|乌拉尔|帕特里斯|中俄|中德|中法|中英|中日|中韩|中爱|马拉加/.test(s + m),
   },
   {
     key: "software",
     label: "软件类",
-    color: "#C9A688",
+    color: "var(--c-warning)",
     desc: "软件工程/软件学院",
     match: (s, m) => /软件工程|软件类|软件学院|软件技术/.test(s + m),
   },
   {
     key: "special",
     label: "专项计划",
-    color: "#8C8780",
+    color: "var(--c-secondary)",
     desc: "国家/地方/高校专项",
     match: (s, m) => /国家专项|地方专项|高校专项|专项计划|公费师范|定向/.test(s + m),
   },
@@ -215,6 +254,7 @@ const PROVINCES: ProvinceInfo[] = [
 
 export default function GaokaoPage() {
   const containerRef = useReveal<HTMLDivElement>();
+  const [theme, setTheme] = useGkTheme();
   const [data, setData] = useState<GaokaoData | null>(null);
   const [meta, setMeta] = useState<Meta | null>(null);
   const [loading, setLoading] = useState(true);
@@ -430,11 +470,11 @@ export default function GaokaoPage() {
   // ============ 渲染 ============
   if (loading) {
     return (
-      <div className="relative flex min-h-screen items-center justify-center bg-[#F5F2ED]">
+      <div className="relative flex min-h-screen items-center justify-center bg-[var(--c-bg)]">
         <div className="text-center">
-          <Loader2 className="mx-auto h-10 w-10 animate-spin text-[#8FAABE]" />
-          <p className="mt-4 text-[#8C8780]">正在加载高考数据...</p>
-          <p className="mt-1 text-xs text-[#8C8780]/50">数据文件较大（约 4MB），请稍候</p>
+          <Loader2 className="mx-auto h-10 w-10 animate-spin text-[var(--c-primary)]" />
+          <p className="mt-4 text-[var(--c-secondary)]">正在加载高考数据...</p>
+          <p className="mt-1 text-xs text-[var(--c-secondary-50)]">数据文件较大（约 4MB），请稍候</p>
         </div>
       </div>
     );
@@ -442,10 +482,10 @@ export default function GaokaoPage() {
 
   if (error) {
     return (
-      <div className="relative flex min-h-screen items-center justify-center bg-[#F5F2ED]">
+      <div className="relative flex min-h-screen items-center justify-center bg-[var(--c-bg)]">
         <div className="text-center">
-          <p className="text-[#B58383]">{error}</p>
-          <button onClick={() => location.reload()} className="mt-4 rounded-lg bg-[#8FAABE] px-4 py-2 text-white transition hover:bg-[#8FAABE]/90">
+          <p className="text-[var(--c-error)]">{error}</p>
+          <button onClick={() => location.reload()} className="mt-4 rounded-lg bg-[var(--c-primary)] px-4 py-2 text-white transition hover:bg-[var(--c-primary)]">
             重试
           </button>
         </div>
@@ -456,24 +496,27 @@ export default function GaokaoPage() {
   return (
     <div ref={containerRef} className="relative min-h-screen">
       {/* 顶部导航 */}
-      <header className="sticky top-0 z-30 border-b border-[#E5E1DB] bg-[#F5F2ED]/85 backdrop-blur-md">
+      <header className="sticky top-0 z-30 border-b border-[var(--c-border)] bg-[var(--c-bg)] backdrop-blur-md">
         <div className="mx-auto flex max-w-[1200px] items-center justify-between px-4 py-3 md:px-6">
-          <a href="#/" className="flex items-center gap-2 text-[#5A5550] transition hover:text-[#8FAABE]">
+          <a href="#/" className="flex items-center gap-2 text-[var(--c-body)] transition hover:text-[var(--c-primary)]">
             <ChevronLeft className="h-4 w-4" />
             <span className="text-sm">天赋星图</span>
           </a>
-          <h1 className="font-display text-lg text-[#3A3733] sm:text-xl">
-            高考志愿 <span className="italic text-[#8FAABE]">导览</span>
+          <h1 className="font-display text-lg text-[var(--c-title)] sm:text-xl">
+            高考志愿 <span className="italic text-[var(--c-primary)]">导览</span>
           </h1>
-          <a
-            href="https://kukuk-blip.github.io/-/#/"
-            target="_blank"
-            rel="noopener"
-            className="flex items-center gap-1 text-xs text-[#8C8780] transition hover:text-[#8FAABE]"
-          >
-            <ExternalLink className="h-3 w-3" />
-            <span className="hidden sm:inline">天赋测试</span>
-          </a>
+          <div className="flex items-center gap-2">
+            <ThemeToggle theme={theme} onChange={setTheme} compact />
+            <a
+              href="https://kukuk-blip.github.io/-/#/"
+              target="_blank"
+              rel="noopener"
+              className="flex items-center gap-1 text-xs text-[var(--c-secondary)] transition hover:text-[var(--c-primary)]"
+            >
+              <ExternalLink className="h-3 w-3" />
+              <span className="hidden sm:inline">天赋测试</span>
+            </a>
+          </div>
         </div>
       </header>
 
@@ -489,10 +532,10 @@ export default function GaokaoPage() {
 
         {/* 概要 */}
         <section className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
-          <StatCard icon={<GraduationCap className="h-5 w-5" />} label="本科批专业" value={meta?.benkeCount.toLocaleString() ?? "-"} color="#8FAABE" />
-          <StatCard icon={<BookOpen className="h-5 w-5" />} label="专科批专业组" value={meta?.zhuankeCount.toLocaleString() ?? "-"} color="#A8B5A0" />
-          <StatCard icon={<School className="h-5 w-5" />} label="院校总数" value={meta?.schoolCount.toLocaleString() ?? "-"} color="#C9A688" />
-          <StatCard icon={<TrendingUp className="h-5 w-5" />} label="数据年份" value="2024-2025" color="#D4B5B0" />
+          <StatCard icon={<GraduationCap className="h-5 w-5" />} label="本科批专业" value={meta?.benkeCount.toLocaleString() ?? "-"} color="var(--c-primary)" />
+          <StatCard icon={<BookOpen className="h-5 w-5" />} label="专科批专业组" value={meta?.zhuankeCount.toLocaleString() ?? "-"} color="var(--c-success)" />
+          <StatCard icon={<School className="h-5 w-5" />} label="院校总数" value={meta?.schoolCount.toLocaleString() ?? "-"} color="var(--c-warning)" />
+          <StatCard icon={<TrendingUp className="h-5 w-5" />} label="数据年份" value="2024-2025" color="var(--c-error)" />
         </section>
 
         {/* 天赋推荐横幅 */}
@@ -500,16 +543,26 @@ export default function GaokaoPage() {
 
         {/* 筛选面板切换 */}
         <div className="mb-4 flex items-center justify-between">
-          <button
-            onClick={() => setShowFilters(s => !s)}
-            className="flex min-h-[48px] items-center gap-2 rounded-lg border border-[#E5E1DB] bg-[#FBFAF8] px-3 py-1.5 text-sm text-[#5A5550] shadow-sm transition hover:border-[#8FAABE] hover:text-[#8FAABE] md:min-h-[40px]"
-          >
-            <Filter className="h-4 w-4" />
-            {showFilters ? "收起筛选" : "展开筛选"}
-            {hasActiveFilters && <span className="h-1.5 w-1.5 rounded-full bg-[#8FAABE]" />}
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setShowFilters(s => !s)}
+              className="flex min-h-[48px] items-center gap-2 rounded-lg border border-[var(--c-border)] bg-[var(--c-card)] px-3 py-1.5 text-sm text-[var(--c-body)] shadow-sm transition hover:border-[var(--c-primary)] hover:text-[var(--c-primary)] md:min-h-[40px]"
+            >
+              <Filter className="h-4 w-4" />
+              {showFilters ? "收起筛选" : "展开筛选"}
+              {hasActiveFilters && <span className="h-1.5 w-1.5 rounded-full bg-[var(--c-primary)]" />}
+            </button>
+            <button
+              onClick={() => exportCSV(tab === "benke" ? filteredB : filteredZ, tab)}
+              className="flex min-h-[48px] items-center gap-1.5 rounded-lg border border-[var(--c-border)] bg-[var(--c-card)] px-3 py-1.5 text-sm text-[var(--c-body)] shadow-sm transition hover:border-[var(--c-primary)] hover:text-[var(--c-primary)] md:min-h-[40px]"
+              title="导出当前筛选结果为 CSV"
+            >
+              <Download className="h-4 w-4" />
+              <span className="hidden sm:inline">导出</span>
+            </button>
+          </div>
           {hasActiveFilters && (
-            <button onClick={resetFilters} className="flex items-center gap-1 text-xs text-[#8C8780] hover:text-[#B58383]">
+            <button onClick={resetFilters} className="flex items-center gap-1 text-xs text-[var(--c-secondary)] hover:text-[var(--c-error)]">
               <X className="h-3 w-3" /> 清空筛选
             </button>
           )}
@@ -539,7 +592,7 @@ export default function GaokaoPage() {
         )}
 
         {/* Tab 切换 */}
-        <div className="mb-4 flex gap-2 border-b border-[#E5E1DB]">
+        <div className="mb-4 flex gap-2 border-b border-[var(--c-border)]">
           <TabButton active={tab === "benke"} onClick={() => setTab("benke")} count={filteredB.length}>
             本科批物理类专业
           </TabButton>
@@ -563,9 +616,9 @@ export default function GaokaoPage() {
         )}
       </main>
 
-      <footer className="relative z-10 border-t border-[#E5E1DB] py-6 text-center">
-        <p className="font-display text-sm text-[#8C8780]/50">高考志愿导览 · Gaokao Navigator</p>
-        <p className="mt-1 text-xs text-[#8C8780]/50">
+      <footer className="relative z-10 border-t border-[var(--c-border)] py-6 text-center">
+        <p className="font-display text-sm text-[var(--c-secondary-50)]">高考志愿导览 · Gaokao Navigator</p>
+        <p className="mt-1 text-xs text-[var(--c-secondary-50)]">
           数据源自《2024-2025 河南物理类录取统计》· 学费为估算区间仅供参考
         </p>
       </footer>
@@ -577,12 +630,12 @@ export default function GaokaoPage() {
 
 function StatCard({ icon, label, value, color }: { icon: React.ReactNode; label: string; value: string; color: string }) {
   return (
-    <div className="rounded-lg border border-[#E5E1DB] bg-[#E0D6C8]/30 px-4 py-3 shadow-sm">
+    <div className="rounded-lg border border-[var(--c-border)] bg-[var(--c-block-30)] px-4 py-3 shadow-sm">
       <div className="flex items-center gap-2" style={{ color }}>
         {icon}
-        <span className="text-xs text-[#8C8780]">{label}</span>
+        <span className="text-xs text-[var(--c-secondary)]">{label}</span>
       </div>
-      <div className="mt-1 font-display text-xl font-semibold text-[#3A3733]">{value}</div>
+      <div className="mt-1 font-display text-xl font-semibold text-[var(--c-title)]">{value}</div>
     </div>
   );
 }
@@ -596,13 +649,13 @@ function DataSourceSection({ province, onProvinceChange, showPanel, setShowPanel
   meta: Meta | null;
 }) {
   return (
-    <section className="mb-6 rounded-lg border border-[#E5E1DB] bg-[#FBFAF8] p-4 shadow-sm">
+    <section className="mb-6 rounded-lg border border-[var(--c-border)] bg-[var(--c-card)] p-4 shadow-sm">
       <div className="flex flex-wrap items-center gap-3">
         {/* 数据来源 */}
-        <div className="flex items-center gap-2 rounded-lg bg-[#8FAABE]/10 px-3 py-1.5">
-          <Database className="h-4 w-4 text-[#8FAABE]" />
-          <span className="text-xs text-[#5A5550]">数据来源：</span>
-          <span className="text-sm font-medium text-[#8FAABE]">
+        <div className="flex items-center gap-2 rounded-lg bg-[var(--c-primary-10)] px-3 py-1.5">
+          <Database className="h-4 w-4 text-[var(--c-primary)]" />
+          <span className="text-xs text-[var(--c-body)]">数据来源：</span>
+          <span className="text-sm font-medium text-[var(--c-primary)]">
             {province.name}省 · 2024-2025 物理类
           </span>
         </div>
@@ -610,16 +663,16 @@ function DataSourceSection({ province, onProvinceChange, showPanel, setShowPanel
         {/* 省份切换按钮 */}
         <button
           onClick={() => setShowPanel(!showPanel)}
-          className="flex min-h-[48px] items-center gap-2 rounded-lg border border-[#E5E1DB] px-3 py-1.5 text-sm text-[#5A5550] shadow-sm transition hover:border-[#8FAABE] hover:text-[#8FAABE] md:min-h-[40px]"
+          className="flex min-h-[48px] items-center gap-2 rounded-lg border border-[var(--c-border)] px-3 py-1.5 text-sm text-[var(--c-body)] shadow-sm transition hover:border-[var(--c-primary)] hover:text-[var(--c-primary)] md:min-h-[40px]"
         >
           <MapPin className="h-4 w-4" />
           切换省份
-          <span className="text-xs text-[#8C8780]/70">({PROVINCES.filter(p => p.available).length}/{PROVINCES.length} 可用)</span>
+          <span className="text-xs text-[var(--c-secondary-70)]">({PROVINCES.filter(p => p.available).length}/{PROVINCES.length} 可用)</span>
         </button>
 
         {/* 考试模式 */}
         {province.examModel && (
-          <span className="rounded-full border border-[#E5E1DB] px-2.5 py-1 text-xs text-[#8C8780]">
+          <span className="rounded-full border border-[var(--c-border)] px-2.5 py-1 text-xs text-[var(--c-secondary)]">
             考试模式：{province.examModel}
           </span>
         )}
@@ -627,15 +680,15 @@ function DataSourceSection({ province, onProvinceChange, showPanel, setShowPanel
         {/* 分数线参考 */}
         {province.scoreLines && (
           <div className="ml-auto flex items-center gap-3">
-            <div className="flex items-center gap-1.5 rounded-lg bg-[#8FAABE]/10 px-3 py-1.5">
-              <Target className="h-3.5 w-3.5 text-[#8FAABE]" />
-              <span className="text-xs text-[#8C8780]">本科批控制线</span>
-              <span className="font-display text-sm font-semibold text-[#8FAABE]">{province.scoreLines.benke}</span>
+            <div className="flex items-center gap-1.5 rounded-lg bg-[var(--c-primary-10)] px-3 py-1.5">
+              <Target className="h-3.5 w-3.5 text-[var(--c-primary)]" />
+              <span className="text-xs text-[var(--c-secondary)]">本科批控制线</span>
+              <span className="font-display text-sm font-semibold text-[var(--c-primary)]">{province.scoreLines.benke}</span>
             </div>
-            <div className="flex items-center gap-1.5 rounded-lg bg-[#C9A688]/10 px-3 py-1.5">
-              <Target className="h-3.5 w-3.5 text-[#C9A688]" />
-              <span className="text-xs text-[#8C8780]">专科批控制线</span>
-              <span className="font-display text-sm font-semibold text-[#C9A688]">{province.scoreLines.zhuanke}</span>
+            <div className="flex items-center gap-1.5 rounded-lg px-3 py-1.5" style={{ backgroundColor: "color-mix(in srgb, var(--c-warning) 10%, transparent)" }}>
+              <Target className="h-3.5 w-3.5 text-[var(--c-warning)]" />
+              <span className="text-xs text-[var(--c-secondary)]">专科批控制线</span>
+              <span className="font-display text-sm font-semibold text-[var(--c-warning)]">{province.scoreLines.zhuanke}</span>
             </div>
           </div>
         )}
@@ -643,10 +696,10 @@ function DataSourceSection({ province, onProvinceChange, showPanel, setShowPanel
 
       {/* 省份选择面板 */}
       {showPanel && (
-        <div className="mt-4 border-t border-[#E5E1DB] pt-4">
+        <div className="mt-4 border-t border-[var(--c-border)] pt-4">
           <div className="mb-2 flex items-center gap-2">
-            <MapPin className="h-4 w-4 text-[#8FAABE]" />
-            <span className="text-xs text-[#8C8780]">选择省份（含中国地图标注）</span>
+            <MapPin className="h-4 w-4 text-[var(--c-primary)]" />
+            <span className="text-xs text-[var(--c-secondary)]">选择省份（含中国地图标注）</span>
           </div>
           <ChinaMapSelector
             current={province}
@@ -670,10 +723,10 @@ function DataSourceSection({ province, onProvinceChange, showPanel, setShowPanel
                 disabled={!p.available}
                 className={`rounded-md border px-2.5 py-1 text-xs transition ${
                   p.code === province.code
-                    ? "border-[#8FAABE] bg-[#8FAABE]/15 text-[#8FAABE]"
+                    ? "border-[var(--c-primary)] bg-[var(--c-primary-15)] text-[var(--c-primary)]"
                     : p.available
-                    ? "border-[#E5E1DB] text-[#5A5550] hover:border-[#8FAABE] hover:text-[#8FAABE]"
-                    : "border-[#E5E1DB] text-[#8C8780]/50 cursor-not-allowed"
+                    ? "border-[var(--c-border)] text-[var(--c-body)] hover:border-[var(--c-primary)] hover:text-[var(--c-primary)]"
+                    : "border-[var(--c-border)] text-[var(--c-secondary-50)] cursor-not-allowed"
                 }`}
                 title={p.available ? `${p.name} · ${p.examModel}` : `${p.name} · 数据整理中`}
               >
@@ -682,7 +735,7 @@ function DataSourceSection({ province, onProvinceChange, showPanel, setShowPanel
               </button>
             ))}
           </div>
-          <p className="mt-3 text-xs text-[#8C8780]/50">
+          <p className="mt-3 text-xs text-[var(--c-secondary-50)]">
             注：当前仅河南省数据完整可用。其余省份数据正在整理中，敬请期待。
             分数线为 2024 年该省物理类控制分数线，仅供参考。
           </p>
@@ -711,11 +764,11 @@ function ChinaMapSelector({ current, onSelect }: {
   const areas = ["东北", "华北", "华东", "华中", "华南", "西南", "西北"];
 
   return (
-    <div className="rounded-lg border border-[#E5E1DB] bg-[#FBFAF8] p-3">
+    <div className="rounded-lg border border-[var(--c-border)] bg-[var(--c-card)] p-3">
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         {areas.map(area => (
           <div key={area}>
-            <div className="mb-1.5 text-[10px] tracking-widest text-[#8C8780]/50">{area.toUpperCase()}</div>
+            <div className="mb-1.5 text-[10px] tracking-widest text-[var(--c-secondary-50)]">{area.toUpperCase()}</div>
             <div className="flex flex-wrap gap-1">
               {regions.filter(r => r.area === area).map(r => {
                 const p = PROVINCES.find(x => x.name === r.name);
@@ -728,10 +781,10 @@ function ChinaMapSelector({ current, onSelect }: {
                     disabled={!p.available}
                     className={`rounded px-2 py-0.5 text-xs transition ${
                       isCurrent
-                        ? "bg-[#8FAABE] text-white font-medium"
+                        ? "bg-[var(--c-primary)] text-white font-medium"
                         : p.available
-                        ? "bg-[#E0D6C8]/30 text-[#5A5550] hover:bg-[#8FAABE]/15"
-                        : "bg-[#FBFAF8] text-[#8C8780]/50 cursor-not-allowed"
+                        ? "bg-[var(--c-block-30)] text-[var(--c-body)] hover:bg-[var(--c-primary-15)]"
+                        : "bg-[var(--c-card)] text-[var(--c-secondary-50)] cursor-not-allowed"
                     }`}
                     title={p.available ? `${p.name}（可用）` : `${p.name}（数据整理中）`}
                   >
@@ -753,22 +806,22 @@ function TalentBanner({ meta, talentFilter, setTalentFilter }: {
   setTalentFilter: (v: string) => void;
 }) {
   return (
-    <section className="mb-6 rounded-lg border border-[#8FAABE]/30 bg-gradient-to-r from-[#8FAABE]/10 to-transparent p-4 shadow-sm">
+    <section className="mb-6 rounded-lg border border-[var(--c-primary-30)] bg-gradient-to-r from-[var(--c-primary-10)] to-transparent p-4 shadow-sm">
       <div className="flex items-start gap-3">
-        <Sparkles className="mt-0.5 h-5 w-5 shrink-0 text-[#8FAABE]" />
+        <Sparkles className="mt-0.5 h-5 w-5 shrink-0 text-[var(--c-primary)]" />
         <div className="flex-1">
-          <h3 className="font-display text-base text-[#3A3733]">天赋匹配 · 专业推荐</h3>
-          <p className="mt-0.5 text-xs text-[#8C8780]">
+          <h3 className="font-display text-base text-[var(--c-title)]">天赋匹配 · 专业推荐</h3>
+          <p className="mt-0.5 text-xs text-[var(--c-secondary)]">
             选择你的天赋类型，高亮匹配的专业。未测天赋？
-            <a href="https://kukuk-blip.github.io/-/#/" target="_blank" rel="noopener" className="text-[#8FAABE] hover:underline">前往天赋测试 →</a>
+            <a href="https://kukuk-blip.github.io/-/#/" target="_blank" rel="noopener" className="text-[var(--c-primary)] hover:underline">前往天赋测试 →</a>
           </p>
           <div className="mt-3 flex flex-wrap gap-2">
             <button
               onClick={() => setTalentFilter("all")}
               className={`rounded-full border px-3 py-1 text-xs transition ${
                 talentFilter === "all"
-                  ? "border-[#8FAABE] bg-[#8FAABE]/15 text-[#8FAABE]"
-                  : "border-[#E5E1DB] text-[#8C8780] hover:border-[#8FAABE]/30"
+                  ? "border-[var(--c-primary)] bg-[var(--c-primary-15)] text-[var(--c-primary)]"
+                  : "border-[var(--c-border)] text-[var(--c-secondary)] hover:border-[var(--c-primary-30)]"
               }`}
             >
               全部
@@ -780,9 +833,9 @@ function TalentBanner({ meta, talentFilter, setTalentFilter }: {
                 className={`flex items-center gap-1 rounded-full border px-3 py-1 text-xs transition ${
                   talentFilter === t.id
                     ? "border-transparent text-white"
-                    : "border-[#E5E1DB] text-[#8C8780] hover:border-[#8FAABE]/30"
+                    : "border-[var(--c-border)] text-[var(--c-secondary)] hover:border-[var(--c-primary-30)]"
                 }`}
-                style={talentFilter === t.id ? { background: t.color, color: "#3A3733" } : {}}
+                style={talentFilter === t.id ? { background: t.color, color: "var(--c-hover-text)" } : {}}
               >
                 <span className="h-1.5 w-1.5 rounded-full" style={{ background: t.color }} />
                 {t.name}
@@ -835,16 +888,16 @@ function FilterPanel(props: {
   };
 
   return (
-    <div className="mb-6 rounded-lg border border-[#E5E1DB] bg-[#FBFAF8] p-4 shadow-sm">
+    <div className="mb-6 rounded-lg border border-[var(--c-border)] bg-[var(--c-card)] p-4 shadow-sm">
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
         {/* 院校搜索（带下拉建议，可点击精确选择） */}
         <div className="relative">
-          <label className="mb-1.5 flex items-center gap-1.5 text-xs text-[#8C8780]">
+          <label className="mb-1.5 flex items-center gap-1.5 text-xs text-[var(--c-secondary)]">
             <School className="h-3.5 w-3.5" /> 院校名称
-            <span className="text-[10px] text-[#8C8780]/50">（可输入或从下拉选择，共 {schoolList.length} 所）</span>
+            <span className="text-[10px] text-[var(--c-secondary-50)]">（可输入或从下拉选择，共 {schoolList.length} 所）</span>
           </label>
           <div className="relative">
-            <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[#8C8780]/50" />
+            <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[var(--c-secondary-50)]" />
             <input
               value={props.searchSchool}
               onChange={(e) => {
@@ -854,12 +907,12 @@ function FilterPanel(props: {
               onFocus={() => setSchoolDropdownOpen(true)}
               onBlur={() => setTimeout(() => setSchoolDropdownOpen(false), 200)}
               placeholder="如：北京大学 / 郑州大学"
-              className="w-full min-h-[44px] rounded-lg border border-[#E5E1DB] bg-[#FBFAF8] py-2 pl-8 pr-8 text-sm text-[#3A3733] placeholder-[#8C8780]/50 focus:border-[#8FAABE] focus:outline-none"
+              className="w-full min-h-[44px] rounded-lg border border-[var(--c-border)] bg-[var(--c-card)] py-2 pl-8 pr-8 text-sm text-[var(--c-title)] placeholder-[var(--c-secondary-50)] focus:border-[var(--c-primary)] focus:outline-none"
             />
             {props.searchSchool && (
               <button
                 onClick={() => props.setSearchSchool("")}
-                className="absolute right-2 top-1/2 -translate-y-1/2 text-[#8C8780]/50 hover:text-[#5A5550]"
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-[var(--c-secondary-50)] hover:text-[var(--c-body)]"
                 title="清除"
               >
                 <X className="h-3.5 w-3.5" />
@@ -867,7 +920,7 @@ function FilterPanel(props: {
             )}
           </div>
           {schoolDropdownOpen && schoolSuggestions.length > 0 && (
-            <ul className="absolute z-50 mt-1 max-h-60 w-full overflow-auto rounded-lg border border-[#E5E1DB] bg-[#FBFAF8] shadow-xl">
+            <ul className="absolute z-50 mt-1 max-h-60 w-full overflow-auto rounded-lg border border-[var(--c-border)] bg-[var(--c-card)] shadow-xl">
               {schoolSuggestions.map(s => (
                 <li
                   key={s}
@@ -876,13 +929,13 @@ function FilterPanel(props: {
                     props.setSearchSchool(s);
                     setSchoolDropdownOpen(false);
                   }}
-                  className="cursor-pointer px-3 py-1.5 text-xs text-[#5A5550] hover:bg-[#8FAABE]/15 hover:text-[#8FAABE]"
+                  className="cursor-pointer px-3 py-1.5 text-xs text-[var(--c-body)] hover:bg-[var(--c-primary-15)] hover:text-[var(--c-primary)]"
                 >
                   {s}
                 </li>
               ))}
               {schoolSuggestions.length === 30 && (
-                <li className="px-3 py-1 text-[10px] text-[#8C8780]/50">仅显示前 30 条，继续输入可精确筛选…</li>
+                <li className="px-3 py-1 text-[10px] text-[var(--c-secondary-50)]">仅显示前 30 条，继续输入可精确筛选…</li>
               )}
             </ul>
           )}
@@ -890,23 +943,23 @@ function FilterPanel(props: {
 
         {/* 专业搜索 */}
         <div>
-          <label className="mb-1.5 flex items-center gap-1.5 text-xs text-[#8C8780]">
+          <label className="mb-1.5 flex items-center gap-1.5 text-xs text-[var(--c-secondary)]">
             <BookOpen className="h-3.5 w-3.5" /> 专业名称
           </label>
           <div className="relative">
-            <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[#8C8780]/50" />
+            <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[var(--c-secondary-50)]" />
             <input
               value={props.searchMajor}
               onChange={(e) => props.setSearchMajor(e.target.value)}
               placeholder="如：计算机"
-              className="w-full min-h-[44px] rounded-lg border border-[#E5E1DB] bg-[#FBFAF8] py-2 pl-8 pr-3 text-sm text-[#3A3733] placeholder-[#8C8780]/50 focus:border-[#8FAABE] focus:outline-none"
+              className="w-full min-h-[44px] rounded-lg border border-[var(--c-border)] bg-[var(--c-card)] py-2 pl-8 pr-3 text-sm text-[var(--c-title)] placeholder-[var(--c-secondary-50)] focus:border-[var(--c-primary)] focus:outline-none"
             />
           </div>
         </div>
 
         {/* 当年高考分数参考（用户输入） */}
         <div>
-          <label className="mb-1.5 flex items-center gap-1.5 text-xs text-[#8C8780]">
+          <label className="mb-1.5 flex items-center gap-1.5 text-xs text-[var(--c-secondary)]">
             <Target className="h-3.5 w-3.5" /> 当年高考分数参考
           </label>
           <div className="flex items-center gap-2">
@@ -917,22 +970,22 @@ function FilterPanel(props: {
               placeholder="输入你的分数"
               min={0}
               max={750}
-              className="w-full min-h-[44px] rounded-lg border border-[#E5E1DB] bg-[#FBFAF8] px-3 py-2 text-sm text-[#3A3733] placeholder-[#8C8780]/50 focus:border-[#8FAABE] focus:outline-none"
+              className="w-full min-h-[44px] rounded-lg border border-[var(--c-border)] bg-[var(--c-card)] px-3 py-2 text-sm text-[var(--c-title)] placeholder-[var(--c-secondary-50)] focus:border-[var(--c-primary)] focus:outline-none"
             />
             {props.userScore !== "" && (
-              <label className="flex shrink-0 cursor-pointer items-center gap-1 text-xs text-[#8C8780]">
+              <label className="flex shrink-0 cursor-pointer items-center gap-1 text-xs text-[var(--c-secondary)]">
                 <input
                   type="checkbox"
                   checked={props.onlyAboveUserScore}
                   onChange={(e) => props.setOnlyAboveUserScore(e.target.checked)}
-                  className="accent-[#8FAABE]"
+                  className="accent-[var(--c-primary)]"
                 />
                 仅显示可达
               </label>
             )}
           </div>
           {props.userScore !== "" && (
-            <p className="mt-1 text-[10px] text-[#8C8780]/70">
+            <p className="mt-1 text-[10px] text-[var(--c-secondary-70)]">
               {props.onlyAboveUserScore
                 ? `仅显示录取最低分 ≤ ${props.userScore} 的专业（你可达）`
                 : `勾选「仅显示可达」筛选你分数能上的专业`}
@@ -942,13 +995,13 @@ function FilterPanel(props: {
 
         {/* 再选科目（多选） */}
         <div className="md:col-span-2 lg:col-span-3">
-          <label className="mb-1.5 flex items-center gap-1.5 text-xs text-[#8C8780]">
+          <label className="mb-1.5 flex items-center gap-1.5 text-xs text-[var(--c-secondary)]">
             <ClipboardList className="h-3.5 w-3.5" />
             报名条件 · 再选科目要求（多选，任一匹配）
             {props.subjectFilter.size > 0 && (
               <button
                 onClick={() => props.setSubjectFilter(new Set())}
-                className="ml-2 text-[#8C8780]/70 hover:text-[#B58383]"
+                className="ml-2 text-[var(--c-secondary-70)] hover:text-[var(--c-error)]"
               >
                 清除
               </button>
@@ -964,13 +1017,13 @@ function FilterPanel(props: {
                   className={`flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs transition ${
                     active
                       ? "border-transparent text-white"
-                      : "border-[#E5E1DB] text-[#8C8780] hover:border-[#8FAABE]/30"
+                      : "border-[var(--c-border)] text-[var(--c-secondary)] hover:border-[var(--c-primary-30)]"
                   }`}
-                  style={active ? { background: s.color, color: "#3A3733" } : {}}
+                  style={active ? { background: s.color, color: "var(--c-hover-text)" } : {}}
                 >
                   <span
                     className="h-1.5 w-1.5 rounded-full"
-                    style={{ background: active ? "#3A3733" : s.color }}
+                    style={{ background: active ? "var(--c-hover-text)" : s.color }}
                   />
                   {s.label}
                 </button>
@@ -981,13 +1034,13 @@ function FilterPanel(props: {
 
         {/* 特殊类别（多选，源自 2026 招生考试之友分类） */}
         <div className="md:col-span-2 lg:col-span-3">
-          <label className="mb-1.5 flex items-center gap-1.5 text-xs text-[#8C8780]">
+          <label className="mb-1.5 flex items-center gap-1.5 text-xs text-[var(--c-secondary)]">
             <Filter className="h-3.5 w-3.5" />
             特殊类别筛选（多选，源自 2026 河南招生考试之友）
             {props.categoryFilter.size > 0 && (
               <button
                 onClick={() => props.setCategoryFilter(new Set())}
-                className="ml-2 text-[#8C8780]/70 hover:text-[#B58383]"
+                className="ml-2 text-[var(--c-secondary-70)] hover:text-[var(--c-error)]"
               >
                 清除
               </button>
@@ -1003,9 +1056,9 @@ function FilterPanel(props: {
                   className={`rounded-md border px-2.5 py-1 text-xs transition ${
                     active
                       ? "border-transparent text-white"
-                      : "border-[#E5E1DB] text-[#8C8780] hover:border-[#8FAABE]/30"
+                      : "border-[var(--c-border)] text-[var(--c-secondary)] hover:border-[var(--c-primary-30)]"
                   }`}
-                  style={active ? { background: c.color, color: "#3A3733" } : {}}
+                  style={active ? { background: c.color, color: "var(--c-hover-text)" } : {}}
                   title={c.desc}
                 >
                   {c.label}
@@ -1014,7 +1067,7 @@ function FilterPanel(props: {
             })}
           </div>
           {props.categoryFilter.size > 0 && (
-            <p className="mt-1.5 text-[10px] text-[#8C8780]/50">
+            <p className="mt-1.5 text-[10px] text-[var(--c-secondary-50)]">
               {Array.from(props.categoryFilter).map(k => CATEGORY_DEFS.find(c => c.key === k)?.desc).filter(Boolean).join(" · ")}
             </p>
           )}
@@ -1022,7 +1075,7 @@ function FilterPanel(props: {
 
         {/* 学费档级 */}
         <div className="md:col-span-2 lg:col-span-3">
-          <label className="mb-1.5 flex items-center gap-1.5 text-xs text-[#8C8780]">
+          <label className="mb-1.5 flex items-center gap-1.5 text-xs text-[var(--c-secondary)]">
             <Coins className="h-3.5 w-3.5" /> 专业价格 · 学费档级（粗筛）
           </label>
           <div className="flex flex-wrap gap-1.5">
@@ -1030,8 +1083,8 @@ function FilterPanel(props: {
               onClick={() => props.setTuitionFilter("all")}
               className={`rounded-md border px-2.5 py-1 text-xs transition ${
                 props.tuitionFilter === "all"
-                  ? "border-[#8FAABE] bg-[#8FAABE]/15 text-[#8FAABE]"
-                  : "border-[#E5E1DB] text-[#8C8780] hover:border-[#8FAABE]/30"
+                  ? "border-[var(--c-primary)] bg-[var(--c-primary-15)] text-[var(--c-primary)]"
+                  : "border-[var(--c-border)] text-[var(--c-secondary)] hover:border-[var(--c-primary-30)]"
               }`}
             >
               全部
@@ -1043,9 +1096,9 @@ function FilterPanel(props: {
                 className={`rounded-md border px-2.5 py-1 text-xs transition ${
                   props.tuitionFilter === t.tier
                     ? "border-transparent text-white"
-                    : "border-[#E5E1DB] text-[#8C8780] hover:border-[#8FAABE]/30"
+                    : "border-[var(--c-border)] text-[var(--c-secondary)] hover:border-[var(--c-primary-30)]"
                 }`}
-                style={props.tuitionFilter === t.tier ? { background: t.color, color: "#3A3733" } : {}}
+                style={props.tuitionFilter === t.tier ? { background: t.color, color: "var(--c-hover-text)" } : {}}
                 title={t.range}
               >
                 {t.label}
@@ -1056,24 +1109,24 @@ function FilterPanel(props: {
 
         {/* 具体学费数值范围筛选（精筛，基于估算学费区间） */}
         <div className="md:col-span-2 lg:col-span-3">
-          <label className="mb-1.5 flex items-center gap-1.5 text-xs text-[#8C8780]">
+          <label className="mb-1.5 flex items-center gap-1.5 text-xs text-[var(--c-secondary)]">
             <Coins className="h-3.5 w-3.5" />
             专业价格 · 具体学费范围（精筛，元/年）
-            <label className="ml-2 flex cursor-pointer items-center gap-1 text-[10px] text-[#8C8780]">
+            <label className="ml-2 flex cursor-pointer items-center gap-1 text-[10px] text-[var(--c-secondary)]">
               <input
                 type="checkbox"
                 checked={props.tuitionRangeEnabled}
                 onChange={(e) => props.setTuitionRangeEnabled(e.target.checked)}
-                className="accent-[#8FAABE]"
+                className="accent-[var(--c-primary)]"
               />
               启用
             </label>
             {props.tuitionRangeEnabled && (
-              <span className="text-[#8C8780]/50">
-                当前：<span className="text-[#8FAABE]">¥{props.tuitionMin.toLocaleString()}</span>
+              <span className="text-[var(--c-secondary-50)]">
+                当前：<span className="text-[var(--c-primary)]">¥{props.tuitionMin.toLocaleString()}</span>
                 <span className="mx-1">~</span>
-                <span className="text-[#8FAABE]">¥{props.tuitionMax.toLocaleString()}</span>
-                <span className="ml-1 text-[#8C8780]/50">（数据范围：¥{tuitionRange.min.toLocaleString()} - ¥{tuitionRange.max.toLocaleString()}）</span>
+                <span className="text-[var(--c-primary)]">¥{props.tuitionMax.toLocaleString()}</span>
+                <span className="ml-1 text-[var(--c-secondary-50)]">（数据范围：¥{tuitionRange.min.toLocaleString()} - ¥{tuitionRange.max.toLocaleString()}）</span>
               </span>
             )}
           </label>
@@ -1104,7 +1157,7 @@ function FilterPanel(props: {
             </div>
           )}
           {props.tuitionRangeEnabled && (
-            <p className="mt-1 text-[10px] text-[#8C8780]/50">
+            <p className="mt-1 text-[10px] text-[var(--c-secondary-50)]">
               注：学费为基于专业类型的估算区间，非院校官方公示数据，仅供参考。实际学费请以院校招生章程为准。
             </p>
           )}
@@ -1112,13 +1165,13 @@ function FilterPanel(props: {
 
         {/* 录取最低分范围（双向） */}
         <div className="md:col-span-2 lg:col-span-3">
-          <label className="mb-1.5 flex items-center gap-1.5 text-xs text-[#8C8780]">
+          <label className="mb-1.5 flex items-center gap-1.5 text-xs text-[var(--c-secondary)]">
             <TrendingUp className="h-3.5 w-3.5" />
             录取最低分范围：
-            <span className="text-[#8FAABE]">{props.scoreMin}</span>
-            <span className="text-[#8C8780]/50">~</span>
-            <span className="text-[#8FAABE]">{props.scoreMax}</span>
-            <span className="text-[#8C8780]/50">（{range.min} - {range.max}）</span>
+            <span className="text-[var(--c-primary)]">{props.scoreMin}</span>
+            <span className="text-[var(--c-secondary-50)]">~</span>
+            <span className="text-[var(--c-primary)]">{props.scoreMax}</span>
+            <span className="text-[var(--c-secondary-50)]">（{range.min} - {range.max}）</span>
           </label>
           <div className="flex items-center gap-3">
             <div className="flex-1">
@@ -1158,19 +1211,19 @@ function TabButton({ active, onClick, count, children }: {
     <button
       onClick={onClick}
       className={`relative px-4 py-2 text-sm font-medium transition ${
-        active ? "text-[#8FAABE]" : "text-[#8C8780] hover:text-[#3A3733]"
+        active ? "text-[var(--c-primary)]" : "text-[var(--c-secondary)] hover:text-[var(--c-title)]"
       }`}
     >
       {children}
-      <span className="ml-1.5 rounded-full bg-[#E0D6C8]/50 px-1.5 py-0.5 text-xs">{count.toLocaleString()}</span>
-      {active && <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#8FAABE]" />}
+      <span className="ml-1.5 rounded-full bg-[var(--c-block-30)] px-1.5 py-0.5 text-xs">{count.toLocaleString()}</span>
+      {active && <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-[var(--c-primary)]" />}
     </button>
   );
 }
 
 function TalentTags({ talentsStr, meta, highlight }: { talentsStr: string; meta: Meta | null; highlight?: string }) {
   const arr = (talentsStr || "").split(",").filter(Boolean);
-  if (arr.length === 0) return <span className="text-[#8C8780]/50">-</span>;
+  if (arr.length === 0) return <span className="text-[var(--c-secondary-50)]">-</span>;
   return (
     <div className="flex flex-wrap gap-1">
       {arr.map(id => {
@@ -1182,8 +1235,8 @@ function TalentTags({ talentsStr, meta, highlight }: { talentsStr: string; meta:
             key={id}
             className="rounded px-1.5 py-0.5 text-[10px]"
             style={{
-              background: isHL ? t.color : `${t.color}1A`,
-              color: isHL ? "#3A3733" : t.color,
+              background: isHL ? t.color : `color-mix(in srgb, ${t.color} 10%, transparent)`,
+              color: isHL ? "var(--c-hover-text)" : t.color,
               fontWeight: isHL ? 600 : 400,
             }}
           >
@@ -1197,11 +1250,11 @@ function TalentTags({ talentsStr, meta, highlight }: { talentsStr: string; meta:
 
 function TuitionBadge({ tier, label }: { tier: number; label: string }) {
   const info = TUITION_LABELS[tier];
-  if (!info) return <span className="text-[#8C8780]/50">-</span>;
+  if (!info) return <span className="text-[var(--c-secondary-50)]">-</span>;
   return (
     <span
       className="rounded px-1.5 py-0.5 text-[10px]"
-      style={{ background: `${info.color}1A`, color: info.color }}
+      style={{ background: `color-mix(in srgb, ${info.color} 10%, transparent)`, color: info.color }}
     >
       {label}
     </span>
@@ -1210,10 +1263,11 @@ function TuitionBadge({ tier, label }: { tier: number; label: string }) {
 
 function BenkeTable({ rows, talentFilter, meta }: { rows: BenkeRow[]; talentFilter: string; meta: Meta | null }) {
   return (
-    <div className="overflow-x-auto rounded-lg border border-[#E5E1DB]">
+    <>
+    <div className="hidden overflow-x-auto rounded-lg border border-[var(--c-border)] md:block">
       <table className="w-full min-w-[1400px] text-left text-xs">
-        <thead className="sticky top-[57px] z-10 bg-[#FBFAF8]/95 backdrop-blur-sm">
-          <tr className="text-[#8C8780]">
+        <thead className="sticky top-[57px] z-10 backdrop-blur-sm" style={{ background: "color-mix(in srgb, var(--c-card-solid) 95%, transparent)" }}>
+          <tr className="text-[var(--c-secondary)]">
             <Th>排名</Th>
             <Th>院校代号</Th>
             <Th>院校名称</Th>
@@ -1237,25 +1291,25 @@ function BenkeTable({ rows, talentFilter, meta }: { rows: BenkeRow[]; talentFilt
             return (
               <tr
                 key={i}
-                className={`border-t border-[#E5E1DB] transition hover:bg-[#8FAABE]/8 ${
-                  isHL ? "bg-[#8FAABE]/10" : ""
+                className={`border-t border-[var(--c-border)] transition hover:bg-[var(--c-primary-8)] ${
+                  isHL ? "bg-[var(--c-primary-10)]" : ""
                 }`}
               >
-                <Td><span className="font-mono text-[#8C8780]/70">{r[0]}</span></Td>
+                <Td><span className="font-mono text-[var(--c-secondary-70)]">{r[0]}</span></Td>
                 <Td><span className="font-mono">{r[1]}</span></Td>
-                <Td><span className="text-[#3A3733]">{r[2]}</span></Td>
-                <Td><span className="font-mono text-[#5A5550]">{r[3] || "-"}</span></Td>
-                <Td><span className="text-[#8C8780]">{r[4] || "-"}</span></Td>
+                <Td><span className="text-[var(--c-title)]">{r[2]}</span></Td>
+                <Td><span className="font-mono text-[var(--c-body)]">{r[3] || "-"}</span></Td>
+                <Td><span className="text-[var(--c-secondary)]">{r[4] || "-"}</span></Td>
                 <Td>
                   <div className="flex items-center gap-1.5">
-                    <span className="font-mono text-[10px] text-[#8C8780]/50">{r[5]}</span>
-                    <span className="text-[#3A3733]">{r[6]}</span>
+                    <span className="font-mono text-[10px] text-[var(--c-secondary-50)]">{r[5]}</span>
+                    <span className="text-[var(--c-title)]">{r[6]}</span>
                   </div>
                 </Td>
                 <Td right>{r[7] ?? "-"}</Td>
                 <Td right>{r[8] ?? "-"}</Td>
                 <Td right>{r[9] ?? "-"}</Td>
-                <Td right><span className="font-semibold text-[#8FAABE]">{r[10]}</span></Td>
+                <Td right><span className="font-semibold text-[var(--c-primary)]">{r[10]}</span></Td>
                 <Td right>{r[11]?.toLocaleString() ?? "-"}</Td>
                 <Td right>{r[12] ?? "-"}</Td>
                 <Td right>{r[13]?.toLocaleString() ?? "-"}</Td>
@@ -1265,20 +1319,97 @@ function BenkeTable({ rows, talentFilter, meta }: { rows: BenkeRow[]; talentFilt
             );
           })}
           {rows.length === 0 && (
-            <tr><td colSpan={15} className="py-12 text-center text-[#8C8780]/50">无匹配数据，请调整筛选条件</td></tr>
+            <tr><td colSpan={15} className="py-12 text-center text-[var(--c-secondary-50)]">无匹配数据，请调整筛选条件</td></tr>
           )}
         </tbody>
       </table>
     </div>
+    {/* 移动端卡片视图 */}
+    <div className="space-y-3 md:hidden">
+      {rows.map((r, i) => {
+        const isHL = talentFilter !== "all" && (r[14] || "").split(",").includes(talentFilter);
+        return (
+          <div
+            key={i}
+            className={`rounded-lg border border-[var(--c-border)] bg-[var(--c-card)] p-3 ${
+              isHL ? "ring-1 ring-[var(--c-primary-30)]" : ""
+            }`}
+          >
+            {/* 卡片头部：排名 + 院校名 + 代号 */}
+            <div className="flex items-start justify-between gap-2 border-b border-[var(--c-border-soft)] pb-2">
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-2">
+                  <span className="font-mono text-[10px] text-[var(--c-secondary-50)]">#{r[0]}</span>
+                  <span className="truncate text-[var(--c-title)] font-medium">{r[2]}</span>
+                </div>
+                <div className="mt-0.5 flex items-center gap-2 text-[10px] text-[var(--c-secondary)]">
+                  <span className="font-mono">{r[1]}</span>
+                  <span>·</span>
+                  <span>专业组 {r[3] || "-"}</span>
+                  <span>·</span>
+                  <span>{r[4] || "不限"}</span>
+                </div>
+              </div>
+            </div>
+            {/* 专业名 */}
+            <div className="py-2">
+              <div className="flex items-center gap-1.5">
+                <span className="font-mono text-[10px] text-[var(--c-secondary-50)]">{r[5]}</span>
+                <span className="text-[var(--c-title)] text-sm">{r[6]}</span>
+              </div>
+            </div>
+            {/* 分数网格 */}
+            <div className="grid grid-cols-3 gap-2 border-t border-[var(--c-border-soft)] pt-2 text-xs">
+              <div>
+                <div className="text-[var(--c-secondary-50)] text-[10px]">最低分</div>
+                <div className="text-[var(--c-primary)] font-semibold">{r[10]}</div>
+              </div>
+              <div>
+                <div className="text-[var(--c-secondary-50)] text-[10px]">位次</div>
+                <div className="text-[var(--c-body)]">{r[11]?.toLocaleString() ?? "-"}</div>
+              </div>
+              <div>
+                <div className="text-[var(--c-secondary-50)] text-[10px]">组投档</div>
+                <div className="text-[var(--c-body)]">{r[12] ?? "-"}</div>
+              </div>
+              <div>
+                <div className="text-[var(--c-secondary-50)] text-[10px]">最高分</div>
+                <div className="text-[var(--c-body)]">{r[8] ?? "-"}</div>
+              </div>
+              <div>
+                <div className="text-[var(--c-secondary-50)] text-[10px]">平均分</div>
+                <div className="text-[var(--c-body)]">{r[9] ?? "-"}</div>
+              </div>
+              <div>
+                <div className="text-[var(--c-secondary-50)] text-[10px]">录取</div>
+                <div className="text-[var(--c-body)]">{r[7] ?? "-"}人</div>
+              </div>
+            </div>
+            {/* 天赋 + 学费 */}
+            {(r[14] || r[15]) && (
+              <div className="mt-2 flex items-center justify-between gap-2 border-t border-[var(--c-border-soft)] pt-2">
+                <TalentTags talentsStr={r[14]} meta={meta} highlight={talentFilter} />
+                <TuitionBadge tier={r[15]} label={r[18]} />
+              </div>
+            )}
+          </div>
+        );
+      })}
+      {rows.length === 0 && (
+        <div className="py-12 text-center text-[var(--c-secondary-50)]">无匹配数据，请调整筛选条件</div>
+      )}
+    </div>
+    </>
   );
 }
 
 function ZhuankeTable({ rows, talentFilter, meta }: { rows: ZhuankeRow[]; talentFilter: string; meta: Meta | null }) {
   return (
-    <div className="overflow-x-auto rounded-lg border border-[#E5E1DB]">
+    <>
+    <div className="hidden overflow-x-auto rounded-lg border border-[var(--c-border)] md:block">
       <table className="w-full min-w-[1200px] text-left text-xs">
-        <thead className="sticky top-[57px] z-10 bg-[#FBFAF8]/95 backdrop-blur-sm">
-          <tr className="text-[#8C8780]">
+        <thead className="sticky top-[57px] z-10 backdrop-blur-sm" style={{ background: "color-mix(in srgb, var(--c-card-solid) 95%, transparent)" }}>
+          <tr className="text-[var(--c-secondary)]">
             <Th>排名</Th>
             <Th>院校代号</Th>
             <Th>院校名称</Th>
@@ -1300,32 +1431,104 @@ function ZhuankeTable({ rows, talentFilter, meta }: { rows: ZhuankeRow[]; talent
             return (
               <tr
                 key={i}
-                className={`border-t border-[#E5E1DB] transition hover:bg-[#8FAABE]/8 ${
-                  isHL ? "bg-[#8FAABE]/10" : ""
+                className={`border-t border-[var(--c-border)] transition hover:bg-[var(--c-primary-8)] ${
+                  isHL ? "bg-[var(--c-primary-10)]" : ""
                 }`}
               >
-                <Td><span className="font-mono text-[#8C8780]/70">{r[0]}</span></Td>
+                <Td><span className="font-mono text-[var(--c-secondary-70)]">{r[0]}</span></Td>
                 <Td><span className="font-mono">{r[1]}</span></Td>
-                <Td><span className="text-[#3A3733]">{r[2]}</span></Td>
-                <Td><span className="font-mono text-[#5A5550]">{r[3] || "-"}</span></Td>
-                <Td><span className="text-[#8C8780]">{r[4] || "-"}</span></Td>
+                <Td><span className="text-[var(--c-title)]">{r[2]}</span></Td>
+                <Td><span className="font-mono text-[var(--c-body)]">{r[3] || "-"}</span></Td>
+                <Td><span className="text-[var(--c-secondary)]">{r[4] || "-"}</span></Td>
                 <Td right>{r[5] ?? "-"}</Td>
                 <Td right>{r[6] ?? "-"}</Td>
                 <Td right>{r[7] ?? "-"}</Td>
-                <Td right><span className="font-semibold text-[#8FAABE]">{r[8]}</span></Td>
+                <Td right><span className="font-semibold text-[var(--c-primary)]">{r[8]}</span></Td>
                 <Td right>{r[9]?.toLocaleString() ?? "-"}</Td>
-                <Td><div className="max-w-md whitespace-pre-wrap text-[#5A5550]">{r[10]}</div></Td>
+                <Td><div className="max-w-md whitespace-pre-wrap text-[var(--c-body)]">{r[10]}</div></Td>
                 <Td><TalentTags talentsStr={r[11]} meta={meta} highlight={talentFilter} /></Td>
                 <Td><TuitionBadge tier={r[12]} label={r[15]} /></Td>
               </tr>
             );
           })}
           {rows.length === 0 && (
-            <tr><td colSpan={13} className="py-12 text-center text-[#8C8780]/50">无匹配数据，请调整筛选条件</td></tr>
+            <tr><td colSpan={13} className="py-12 text-center text-[var(--c-secondary-50)]">无匹配数据，请调整筛选条件</td></tr>
           )}
         </tbody>
       </table>
     </div>
+    {/* 移动端卡片视图 */}
+    <div className="space-y-3 md:hidden">
+      {rows.map((r, i) => {
+        const isHL = talentFilter !== "all" && (r[11] || "").split(",").includes(talentFilter);
+        return (
+          <div
+            key={i}
+            className={`rounded-lg border border-[var(--c-border)] bg-[var(--c-card)] p-3 ${
+              isHL ? "ring-1 ring-[var(--c-primary-30)]" : ""
+            }`}
+          >
+            {/* 卡片头部 */}
+            <div className="flex items-start justify-between gap-2 border-b border-[var(--c-border-soft)] pb-2">
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-2">
+                  <span className="font-mono text-[10px] text-[var(--c-secondary-50)]">#{r[0]}</span>
+                  <span className="truncate text-[var(--c-title)] font-medium">{r[2]}</span>
+                </div>
+                <div className="mt-0.5 flex items-center gap-2 text-[10px] text-[var(--c-secondary)]">
+                  <span className="font-mono">{r[1]}</span>
+                  <span>·</span>
+                  <span>专业组 {r[3] || "-"}</span>
+                  <span>·</span>
+                  <span>{r[4] || "不限"}</span>
+                </div>
+              </div>
+            </div>
+            {/* 分数网格 */}
+            <div className="grid grid-cols-3 gap-2 py-2 border-b border-[var(--c-border-soft)] text-xs">
+              <div>
+                <div className="text-[var(--c-secondary-50)] text-[10px]">最低分</div>
+                <div className="text-[var(--c-primary)] font-semibold">{r[8]}</div>
+              </div>
+              <div>
+                <div className="text-[var(--c-secondary-50)] text-[10px]">位次</div>
+                <div className="text-[var(--c-body)]">{r[9]?.toLocaleString() ?? "-"}</div>
+              </div>
+              <div>
+                <div className="text-[var(--c-secondary-50)] text-[10px]">录取</div>
+                <div className="text-[var(--c-body)]">{r[5] ?? "-"}人</div>
+              </div>
+              <div>
+                <div className="text-[var(--c-secondary-50)] text-[10px]">最高分</div>
+                <div className="text-[var(--c-body)]">{r[6] ?? "-"}</div>
+              </div>
+              <div>
+                <div className="text-[var(--c-secondary-50)] text-[10px]">平均分</div>
+                <div className="text-[var(--c-body)]">{r[7] ?? "-"}</div>
+              </div>
+            </div>
+            {/* 包含专业 */}
+            {r[10] && (
+              <div className="py-2 border-b border-[var(--c-border-soft)]">
+                <div className="text-[var(--c-secondary-50)] text-[10px] mb-0.5">包含专业</div>
+                <div className="text-[var(--c-body)] text-xs leading-relaxed">{r[10]}</div>
+              </div>
+            )}
+            {/* 天赋 + 学费 */}
+            {(r[11] || r[12]) && (
+              <div className="mt-2 flex items-center justify-between gap-2">
+                <TalentTags talentsStr={r[11]} meta={meta} highlight={talentFilter} />
+                <TuitionBadge tier={r[12]} label={r[15]} />
+              </div>
+            )}
+          </div>
+        );
+      })}
+      {rows.length === 0 && (
+        <div className="py-12 text-center text-[var(--c-secondary-50)]">无匹配数据，请调整筛选条件</div>
+      )}
+    </div>
+    </>
   );
 }
 
@@ -1353,36 +1556,36 @@ function Pagination({ page, totalPages, setPage, total }: {
 }) {
   return (
     <div className="mt-4 flex flex-wrap items-center justify-between gap-2">
-      <span className="text-xs text-[#8C8780]">
-        共 <span className="text-[#8FAABE]">{total.toLocaleString()}</span> 条记录 · 第 {page}/{totalPages} 页
+      <span className="text-xs text-[var(--c-secondary)]">
+        共 <span className="text-[var(--c-primary)]">{total.toLocaleString()}</span> 条记录 · 第 {page}/{totalPages} 页
       </span>
       <div className="flex items-center gap-1">
         <button
           onClick={() => setPage(1)}
           disabled={page === 1}
-          className="rounded border border-[#E5E1DB] px-2 py-1 text-xs text-[#8C8780] transition hover:border-[#8FAABE] hover:text-[#8FAABE] disabled:opacity-30"
+          className="rounded border border-[var(--c-border)] px-2 py-1 text-xs text-[var(--c-secondary)] transition hover:border-[var(--c-primary)] hover:text-[var(--c-primary)] disabled:opacity-30"
         >
           首页
         </button>
         <button
           onClick={() => setPage(Math.max(1, page - 1))}
           disabled={page === 1}
-          className="flex items-center gap-1 rounded border border-[#E5E1DB] px-2 py-1 text-xs text-[#8C8780] transition hover:border-[#8FAABE] hover:text-[#8FAABE] disabled:opacity-30"
+          className="flex items-center gap-1 rounded border border-[var(--c-border)] px-2 py-1 text-xs text-[var(--c-secondary)] transition hover:border-[var(--c-primary)] hover:text-[var(--c-primary)] disabled:opacity-30"
         >
           <ChevronLeft className="h-3 w-3" /> 上一页
         </button>
-        <span className="px-2 text-xs text-[#8C8780]">{page} / {totalPages}</span>
+        <span className="px-2 text-xs text-[var(--c-secondary)]">{page} / {totalPages}</span>
         <button
           onClick={() => setPage(Math.min(totalPages, page + 1))}
           disabled={page === totalPages}
-          className="flex items-center gap-1 rounded border border-[#E5E1DB] px-2 py-1 text-xs text-[#8C8780] transition hover:border-[#8FAABE] hover:text-[#8FAABE] disabled:opacity-30"
+          className="flex items-center gap-1 rounded border border-[var(--c-border)] px-2 py-1 text-xs text-[var(--c-secondary)] transition hover:border-[var(--c-primary)] hover:text-[var(--c-primary)] disabled:opacity-30"
         >
           下一页 <ChevronRight className="h-3 w-3" />
         </button>
         <button
           onClick={() => setPage(totalPages)}
           disabled={page === totalPages}
-          className="rounded border border-[#E5E1DB] px-2 py-1 text-xs text-[#8C8780] transition hover:border-[#8FAABE] hover:text-[#8FAABE] disabled:opacity-30"
+          className="rounded border border-[var(--c-border)] px-2 py-1 text-xs text-[var(--c-secondary)] transition hover:border-[var(--c-primary)] hover:text-[var(--c-primary)] disabled:opacity-30"
         >
           末页
         </button>

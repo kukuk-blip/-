@@ -4,78 +4,219 @@
 @tailwind components;
 @tailwind utilities;
 
-/* ============ 莫兰迪色系 CSS 变量 ============ */
+/* ============ 全局基础（Home 天赋星图沿用深色） ============ */
 :root {
-  /* 色彩规范 */
-  --morandi-primary: #8FAABE;       /* 雾霾蓝 - 主色 */
-  --morandi-pink: #D4B5B0;          /* 灰粉 - 辅助色1 */
-  --morandi-oat: #E0D6C8;          /* 燕麦色 - 辅助色2 */
-  --morandi-success: #A8B5A0;      /* 豆绿 - 成功色 */
-  --morandi-warning: #C9A688;      /* 暖橙 - 警告色 */
-  --morandi-error: #B58383;        /* 砖红 - 错误色 */
-  --morandi-bg: #F5F2ED;           /* 页面背景 - 暖调米白 */
-  --morandi-card: #FBFAF8;         /* 卡片背景 */
-  --morandi-border: #E5E1DB;       /* 分割线/边框 */
-  --morandi-text-secondary: #8C8780; /* 次要文字 */
-  --morandi-text-body: #5A5550;    /* 正文文字 */
-  --morandi-text-title: #3A3733;   /* 标题文字 */
-
-  /* 方正宋体字体栈 */
-  --font-song: "FZSongS-R-GB", "方正书宋简体", "FZShuSong-Z01", "Noto Serif SC", "SimSun", "宋体", serif;
-
-  font-family: var(--font-song);
-  line-height: 1.75;
+  font-family: "Noto Sans SC", system-ui, sans-serif;
+  line-height: 1.6;
   font-weight: 400;
-  color: var(--morandi-text-body);
-
+  color: #e8eaf6;
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
 
-html {
-  scroll-behavior: smooth;
-}
+html { scroll-behavior: smooth; }
 
 body {
   margin: 0;
-  background-color: var(--morandi-bg);
+  background-color: #070a1f;
+  background-image:
+    radial-gradient(ellipse 80% 50% at 50% -10%, rgba(245, 185, 66, 0.08), transparent),
+    radial-gradient(ellipse 60% 40% at 80% 20%, rgba(79, 195, 247, 0.06), transparent),
+    radial-gradient(ellipse 50% 40% at 20% 60%, rgba(255, 126, 159, 0.05), transparent);
+  background-attachment: fixed;
   min-height: 100vh;
 }
 
-/* ============ 响应式字号层级 ============ */
-/* 桌面端（≥1200px）：H1 32-36px, H2 24-28px, H3 18-20px, 正文 16px, 辅助 14px */
-/* 移动端（<768px）：H1 24-28px, H2 20-22px, H3 17-18px, 正文 15px, 辅助 13px */
+/* ============ 三套主题语义变量（仅作用于 GaokaoPage 子树） ============
+   变量命名规范：
+   --c-title / --c-body / --c-secondary：文字色（完整色值）
+   --c-secondary-70 / --c-secondary-50：带透明度的次要文字
+   --c-primary：主色（完整色值）
+   --c-bg / --c-card / --c-border：背景与边框
+   --c-block-30 / --c-primary-15 / --c-primary-10 / --c-primary-8：带透明度的色块
+   --c-primary-30：聚焦环
+   --c-success / --c-warning / --c-error：状态色
+   --font-gk：高考页字体栈
+*/
 
-h1 {
+/* 默认（深色主题） */
+[data-gk-theme="dark"] {
+  --c-title: #e8eaf6;
+  --c-body: rgba(232, 234, 246, 0.85);
+  --c-secondary: rgba(232, 234, 246, 0.6);
+  --c-secondary-70: rgba(232, 234, 246, 0.7);
+  --c-secondary-50: rgba(232, 234, 246, 0.5);
+  --c-primary: #f5b942;
+  --c-bg: #070a1f;
+  --c-card: rgba(255, 255, 255, 0.03);
+  --c-card-solid: #0d1228;
+  --c-border: rgba(255, 255, 255, 0.1);
+  --c-border-soft: rgba(255, 255, 255, 0.05);
+  --c-block-30: rgba(255, 255, 255, 0.05);
+  --c-primary-15: rgba(245, 185, 66, 0.2);
+  --c-primary-10: rgba(245, 185, 66, 0.1);
+  --c-primary-8: rgba(255, 255, 255, 0.05);
+  --c-primary-30: rgba(245, 185, 66, 0.3);
+  --c-success: #66e0a0;
+  --c-warning: #ffa94d;
+  --c-error: #ff7e9f;
+  --c-hover-text: #070a1f;
+  --font-gk: "Noto Sans SC", system-ui, sans-serif;
+  --shadow-card: 0 2px 12px rgba(0, 0, 0, 0.3);
+}
+
+/* 莫兰迪主题（暖调） */
+[data-gk-theme="morandi"] {
+  --c-title: #3A3733;
+  --c-body: #5A5550;
+  --c-secondary: #8C8780;
+  --c-secondary-70: rgba(140, 135, 128, 0.85);
+  --c-secondary-50: rgba(140, 135, 128, 0.6);
+  --c-primary: #8FAABE;
+  --c-bg: #F5F2ED;
+  --c-card: #FBFAF8;
+  --c-card-solid: #FBFAF8;
+  --c-border: #E5E1DB;
+  --c-border-soft: #ECE8E2;
+  --c-block-30: rgba(224, 214, 200, 0.3);
+  --c-primary-15: rgba(143, 170, 190, 0.15);
+  --c-primary-10: rgba(143, 170, 190, 0.1);
+  --c-primary-8: rgba(143, 170, 190, 0.08);
+  --c-primary-30: rgba(143, 170, 190, 0.3);
+  --c-success: #A8B5A0;
+  --c-warning: #C9A688;
+  --c-error: #B58383;
+  --c-hover-text: #3A3733;
+  --font-gk: "FZSongS-R-GB", "方正书宋简体", "Noto Serif SC", "SimSun", "宋体", serif;
+  --shadow-card: 0 2px 12px rgba(90, 85, 80, 0.06);
+}
+
+/* 天空蓝+草绿主题（清新冷调） */
+[data-gk-theme="blue"] {
+  --c-title: #2D3748;
+  --c-body: #4A5568;
+  --c-secondary: #718096;
+  --c-secondary-70: rgba(113, 128, 150, 0.85);
+  --c-secondary-50: rgba(113, 128, 150, 0.6);
+  /* 主色：深版天空蓝 #5A9BC7 用于按钮/链接/图标/焦点；标准 #7CB6D9、浅版 #A8D0E6 备用 */
+  --c-primary: #5A9BC7;
+  --c-primary-soft: #E3F0F8;       /* 极浅天空蓝：区块背景/选中行/输入框底/提示栏 */
+  --c-bg: #F7FAFC;
+  --c-card: #FFFFFF;
+  --c-card-solid: #FFFFFF;
+  --c-border: #E2E8F0;
+  --c-border-soft: #EDF2F7;
+  --c-block-30: rgba(227, 240, 248, 0.6);   /* 基于 #E3F0F8 的半透明区块底 */
+  --c-primary-15: rgba(90, 155, 199, 0.15);
+  --c-primary-10: rgba(90, 155, 199, 0.1);
+  --c-primary-8: rgba(90, 155, 199, 0.08);
+  --c-primary-30: rgba(90, 155, 199, 0.3);
+  /* 辅助色：草绿 #8CB890（成功/正向/生态）；浅草绿 #D4E5D6 背景 */
+  --c-success: #8CB890;
+  --c-success-soft: #D4E5D6;
+  --c-warning: #D9B07C;           /* 暖沙橙 */
+  --c-error: #C97C7C;             /* 柔砖红 */
+  --c-hover-text: #2D3748;
+  --font-gk: "FZSongS-R-GB", "方正书宋简体", "Noto Serif SC", "SimSun", "宋体", serif;
+  --shadow-card: 0 2px 12px rgba(90, 155, 199, 0.08);
+}
+
+/* ============ 高考页面基础样式（变量驱动，随主题切换） ============ */
+[data-gk-theme] {
+  font-family: var(--font-gk);
+  line-height: 1.75;
+  color: var(--c-body);
+  background-color: var(--c-bg);
+  min-height: 100vh;
+}
+
+[data-gk-theme] h1 {
   font-size: clamp(24px, 4vw, 34px);
   font-weight: 600;
   line-height: 1.35;
   letter-spacing: 0.5px;
-  color: var(--morandi-text-title);
+  color: var(--c-title);
 }
-
-h2 {
+[data-gk-theme] h2 {
   font-size: clamp(20px, 3vw, 26px);
   font-weight: 500;
   line-height: 1.35;
   letter-spacing: 0.5px;
-  color: var(--morandi-text-title);
+  color: var(--c-title);
 }
-
-h3 {
+[data-gk-theme] h3 {
   font-size: clamp(17px, 2vw, 19px);
   font-weight: 500;
   line-height: 1.4;
-  color: var(--morandi-text-title);
+  color: var(--c-title);
+}
+[data-gk-theme] p { line-height: 1.75; }
+
+/* ============ 滑块样式（随主题主色） ============ */
+[data-gk-theme] input[type="range"] {
+  -webkit-appearance: none;
+  appearance: none;
+  background: transparent;
+  cursor: pointer;
+  width: 100%;
+}
+[data-gk-theme] input[type="range"]::-webkit-slider-runnable-track {
+  height: 4px;
+  border-radius: 2px;
+  background: linear-gradient(
+    to right,
+    var(--c-primary) 0%,
+    var(--c-primary) var(--progress, 50%),
+    var(--c-border) var(--progress, 50%),
+    var(--c-border) 100%
+  );
+}
+[data-gk-theme] input[type="range"]::-moz-range-track {
+  height: 4px; border-radius: 2px; background: var(--c-border);
+}
+[data-gk-theme] input[type="range"]::-moz-range-progress {
+  height: 4px; border-radius: 2px; background: var(--c-primary);
+}
+[data-gk-theme] input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none; appearance: none;
+  width: 16px; height: 16px; border-radius: 50%;
+  background: var(--c-primary);
+  margin-top: -6px;
+  box-shadow: 0 0 0 2px var(--c-card-solid), 0 2px 8px rgba(0,0,0,0.15);
+  transition: transform 0.15s ease;
+}
+[data-gk-theme] input[type="range"]::-webkit-slider-thumb:hover { transform: scale(1.2); }
+[data-gk-theme] input[type="range"]::-moz-range-thumb {
+  width: 16px; height: 16px; border-radius: 50%;
+  background: var(--c-primary);
+  border: 2px solid var(--c-card-solid);
+  cursor: pointer;
 }
 
-p {
-  line-height: 1.75;
+/* ============ 滚动条（随主题） ============ */
+[data-gk-theme] ::-webkit-scrollbar { width: 8px; height: 8px; }
+[data-gk-theme] ::-webkit-scrollbar-track { background: var(--c-bg); }
+[data-gk-theme] ::-webkit-scrollbar-thumb {
+  background: var(--c-primary-30); border-radius: 4px;
+}
+[data-gk-theme] ::-webkit-scrollbar-thumb:hover { background: var(--c-primary-15); }
+[data-gk-theme] ::selection {
+  background: var(--c-primary-30); color: var(--c-title);
 }
 
-/* ============ 自定义滑块样式（莫兰迪色系） ============ */
+/* ============ 卡片工具类（随主题） ============ */
+.gk-card {
+  background: var(--c-card);
+  border: 1px solid var(--c-border);
+  border-radius: 10px;
+  box-shadow: var(--shadow-card);
+  transition: box-shadow 0.3s ease;
+}
+.gk-card:hover { box-shadow: 0 4px 20px rgba(90, 85, 80, 0.1); }
+
+/* ============ 全局滑块（Home 用，保留原深色样式） ============ */
 input[type="range"] {
   -webkit-appearance: none;
   appearance: none;
@@ -83,149 +224,43 @@ input[type="range"] {
   cursor: pointer;
   width: 100%;
 }
-
 input[type="range"]::-webkit-slider-runnable-track {
   height: 4px;
   border-radius: 2px;
   background: linear-gradient(
     to right,
-    var(--morandi-primary) 0%,
-    var(--morandi-primary) var(--progress, 50%),
-    var(--morandi-border) var(--progress, 50%),
-    var(--morandi-border) 100%
+    rgba(245, 185, 66, 0.8) 0%,
+    rgba(245, 185, 66, 0.8) var(--progress, 50%),
+    rgba(255, 255, 255, 0.1) var(--progress, 50%),
+    rgba(255, 255, 255, 0.1) 100%
   );
 }
-
-input[type="range"]::-moz-range-track {
-  height: 4px;
-  border-radius: 2px;
-  background: var(--morandi-border);
-}
-
-input[type="range"]::-moz-range-progress {
-  height: 4px;
-  border-radius: 2px;
-  background: var(--morandi-primary);
-}
-
 input[type="range"]::-webkit-slider-thumb {
-  -webkit-appearance: none;
-  appearance: none;
-  width: 16px;
-  height: 16px;
-  border-radius: 50%;
-  background: var(--morandi-primary);
-  margin-top: -6px;
-  box-shadow: 0 0 0 2px var(--morandi-card), 0 2px 8px rgba(143, 170, 190, 0.3);
-  transition: transform 0.15s ease, box-shadow 0.15s ease;
+  -webkit-appearance: none; appearance: none;
+  width: 16px; height: 16px; border-radius: 50%;
+  background: #f5b942; margin-top: -6px;
+  box-shadow: 0 0 12px rgba(245, 185, 66, 0.6), 0 0 0 2px rgba(7, 10, 31, 0.8);
 }
 
-input[type="range"]::-webkit-slider-thumb:hover {
-  transform: scale(1.2);
-  box-shadow: 0 0 0 2px var(--morandi-card), 0 2px 12px rgba(143, 170, 190, 0.5);
-}
+textarea { font-family: inherit; }
+textarea::placeholder { color: rgba(232, 234, 246, 0.3); font-style: italic; }
 
-input[type="range"]::-moz-range-thumb {
-  width: 16px;
-  height: 16px;
-  border-radius: 50%;
-  background: var(--morandi-primary);
-  border: 2px solid var(--morandi-card);
-  box-shadow: 0 2px 8px rgba(143, 170, 190, 0.3);
-  cursor: pointer;
-}
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-track { background: #0a0e27; }
+::-webkit-scrollbar-thumb { background: rgba(245, 185, 66, 0.3); border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(245, 185, 66, 0.5); }
+::selection { background: rgba(245, 185, 66, 0.3); color: #fff; }
 
-/* ============ 输入框/表单样式 ============ */
-textarea {
-  font-family: inherit;
-}
-
-textarea::placeholder {
-  color: var(--morandi-text-secondary);
-  opacity: 0.6;
-}
-
-/* ============ 滚动条（莫兰迪色系） ============ */
-::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
-}
-
-::-webkit-scrollbar-track {
-  background: var(--morandi-bg);
-}
-
-::-webkit-scrollbar-thumb {
-  background: rgba(143, 170, 190, 0.3);
-  border-radius: 4px;
-}
-
-::-webkit-scrollbar-thumb:hover {
-  background: rgba(143, 170, 190, 0.5);
-}
-
-/* 选中文本 */
-::selection {
-  background: rgba(143, 170, 190, 0.3);
-  color: var(--morandi-text-title);
-}
-
-/* ============ 渐入观察器类 ============ */
+/* 渐入观察器类 */
 .reveal {
   opacity: 0;
   transform: translateY(28px);
   transition: opacity 0.7s cubic-bezier(0.16, 1, 0.3, 1), transform 0.7s cubic-bezier(0.16, 1, 0.3, 1);
 }
-
-.reveal.is-visible {
-  opacity: 1;
-  transform: translateY(0);
-}
-
-/* ============ 莫兰迪卡片工具类 ============ */
-.morandi-card {
-  background: var(--morandi-card);
-  border: 1px solid var(--morandi-border);
-  border-radius: 10px;
-  box-shadow: 0 2px 12px rgba(90, 85, 80, 0.06);
-  transition: box-shadow 0.3s ease;
-}
-
-.morandi-card:hover {
-  box-shadow: 0 4px 20px rgba(90, 85, 80, 0.1);
-}
-
-.morandi-btn-primary {
-  background: var(--morandi-primary);
-  color: #fff;
-  border-radius: 6px;
-  font-weight: 500;
-  transition: opacity 0.2s ease, transform 0.15s ease;
-}
-
-.morandi-btn-primary:hover {
-  opacity: 0.9;
-}
-
-.morandi-btn-secondary {
-  background: transparent;
-  color: var(--morandi-primary);
-  border: 1px solid var(--morandi-primary);
-  border-radius: 6px;
-  transition: background 0.2s ease;
-}
-
-.morandi-btn-secondary:hover {
-  background: rgba(143, 170, 190, 0.08);
-}
+.reveal.is-visible { opacity: 1; transform: translateY(0); }
 
 /* 移动端触控目标尺寸 */
 @media (max-width: 767px) {
-  button {
-    min-height: 36px;
-  }
-  input[type="checkbox"] {
-    width: 18px;
-    height: 18px;
-  }
+  [data-gk-theme] button { min-height: 36px; }
+  [data-gk-theme] input[type="checkbox"] { width: 18px; height: 18px; }
 }
