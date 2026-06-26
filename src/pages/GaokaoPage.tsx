@@ -430,24 +430,8 @@ export default function GaokaoPage() {
     return Array.from(set).sort((a, b) => a.localeCompare(b, "zh"));
   }, [data]);
 
-  // 学费范围（从数据中提取的实际范围）
-  const tuitionRange = useMemo(() => {
-    if (!data) return { min: 0, max: 60000 };
-    let min = Infinity, max = -Infinity;
-    for (const r of data.b) {
-      const lo = r[16], hi = r[17];
-      if (lo != null && lo < min) min = lo;
-      if (hi != null && hi > max) max = hi;
-    }
-    for (const r of data.z) {
-      const lo = r[13], hi = r[14];
-      if (lo != null && lo < min) min = lo;
-      if (hi != null && hi > max) max = hi;
-    }
-    if (!isFinite(min)) min = 0;
-    if (!isFinite(max)) max = 60000;
-    return { min: Math.floor(min / 1000) * 1000, max: Math.ceil(max / 1000) * 1000 };
-  }, [data]);
+  // 学费范围（固定 0 - 60000 元/年）
+  const tuitionRange = useMemo(() => ({ min: 0, max: 60000 }), []);
 
   // 初始化学费范围
   useEffect(() => {
