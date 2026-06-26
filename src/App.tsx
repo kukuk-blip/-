@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import Home from "@/pages/Home";
 import GaokaoPage from "@/pages/GaokaoPage";
 import TalentTest from "@/pages/TalentTest";
+import DataInfoPage from "@/pages/DataInfoPage";
 
 export default function App() {
   const [route, setRoute] = useState<string>(() => window.location.hash || "#/");
@@ -30,6 +31,11 @@ export default function App() {
   // 天赋星图路由
   if (route.startsWith("#/talent")) {
     return <Home />;
+  }
+
+  // 数据说明页路由
+  if (route.startsWith("#/data-info")) {
+    return <DataInfoPage />;
   }
 
   // 默认首页：高考志愿导览

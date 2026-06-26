@@ -961,6 +961,14 @@ export default function GaokaoPage() {
               <p className="mt-1 text-xs text-[var(--c-secondary)]">
                 数据源自《2024-2025 河南物理类录取统计》及《2026 河南招生考试之友》
               </p>
+              <a
+                href="#/data-info"
+                className="mt-2 inline-flex items-center gap-1.5 rounded-md border border-[var(--c-border)] px-2.5 py-1 text-xs transition-colors hover:border-[var(--c-primary)] hover:text-[var(--c-primary)]"
+                style={{ color: "var(--c-secondary)" }}
+              >
+                <Database size={12} />
+                <span>查看数据说明</span>
+              </a>
             </div>
             <div className="space-y-1 text-xs text-[var(--c-secondary)]">
               <div className="flex items-center gap-2">
