@@ -313,7 +313,8 @@ export default function GaokaoPage() {
   const [userScore, setUserScore] = useState<number | "">("");
   // 是否仅显示用户分数可达的记录
   const [onlyAboveUserScore, setOnlyAboveUserScore] = useState(false);
-  const [talentFilter, setTalentFilter] = useState<string>("all");
+  // 天赋筛选：多选（空集合 = 全部），与天赋星图 12 维画像一致
+  const [talentFilter, setTalentFilter] = useState<Set<string>>(new Set());
   const [showFilters, setShowFilters] = useState(true);
 
   // 分页
@@ -474,9 +475,10 @@ export default function GaokaoPage() {
     if (r[10] < scoreMin || r[10] > scoreMax) return false;
     // 用户参考分数筛选
     if (onlyAboveUserScore && userScore !== "" && r[10] > Number(userScore)) return false;
-    if (talentFilter !== "all") {
+    // 天赋多选筛选：记录的天赋需命中至少一个选中天赋
+    if (talentFilter.size > 0) {
       const talents = (r[14] || "").split(",").filter(Boolean);
-      if (!talents.includes(talentFilter)) return false;
+      if (!talents.some(id => talentFilter.has(id))) return false;
     }
     return true;
   };
@@ -509,9 +511,10 @@ export default function GaokaoPage() {
     }
     if (r[8] < scoreMin || r[8] > scoreMax) return false;
     if (onlyAboveUserScore && userScore !== "" && r[8] > Number(userScore)) return false;
-    if (talentFilter !== "all") {
+    // 天赋多选筛选：记录的天赋需命中至少一个选中天赋
+    if (talentFilter.size > 0) {
       const talents = (r[11] || "").split(",").filter(Boolean);
-      if (!talents.includes(talentFilter)) return false;
+      if (!talents.some(id => talentFilter.has(id))) return false;
     }
     return true;
   };
@@ -578,7 +581,7 @@ export default function GaokaoPage() {
     setSubjectFilter(new Set());
     setCategoryFilter(new Set());
     setSchoolTypeFilter(new Set());
-    setTalentFilter("all");
+    setTalentFilter(new Set());
     setOnlyAboveUserScore(false);
     if (meta) {
       const range = tab === "benke" ? meta.benkeScoreRange : meta.zhuankeScoreRange;
@@ -592,7 +595,7 @@ export default function GaokaoPage() {
   const hasActiveFilters = !!(searchSchool || searchMajor || tuitionFilter !== "all" ||
     tuitionRangeEnabled || subjectFilter.size > 0 || categoryFilter.size > 0 ||
     schoolTypeFilter.size > 0 ||
-    talentFilter !== "all" || onlyAboveUserScore);
+    talentFilter.size > 0 || onlyAboveUserScore);
 
   // ============ 渲染 ============
   if (loading) {
@@ -887,7 +890,7 @@ export default function GaokaoPage() {
             scoreMax={scoreMax} setScoreMax={(v) => { setScoreMax(v); setPageB(1); setPageZ(1); }}
             userScore={userScore} setUserScore={(v) => { setUserScore(v); setPageB(1); setPageZ(1); }}
             onlyAboveUserScore={onlyAboveUserScore} setOnlyAboveUserScore={(v) => { setOnlyAboveUserScore(v); setPageB(1); setPageZ(1); }}
-            talentFilter={talentFilter} setTalentFilter={(v) => { setTalentFilter(v); setPageB(1); setPageZ(1); }}
+            talentFilter={talentFilter} setTalentFilter={(v: Set<string>) => { setTalentFilter(v); setPageB(1); setPageZ(1); }}
           />
         )}
 
@@ -1174,45 +1177,62 @@ function ChinaMapSelector({ current, onSelect }: {
 
 function TalentBanner({ meta, talentFilter, setTalentFilter }: {
   meta: Meta | null;
-  talentFilter: string;
-  setTalentFilter: (v: string) => void;
+  talentFilter: Set<string>;
+  setTalentFilter: (v: Set<string>) => void;
 }) {
+  const allActive = talentFilter.size === 0;
+  const toggle = (id: string) => {
+    const next = new Set(talentFilter);
+    if (next.has(id)) next.delete(id);
+    else next.add(id);
+    setTalentFilter(next);
+  };
   return (
     <section className="mb-6 rounded-lg border border-[var(--c-primary-30)] bg-gradient-to-r from-[var(--c-primary-10)] to-transparent p-4 shadow-sm">
       <div className="flex items-start gap-3">
         <Sparkles className="mt-0.5 h-5 w-5 shrink-0 text-[var(--c-primary)]" />
         <div className="flex-1">
-          <h3 className="font-display text-base text-[var(--c-title)]">天赋匹配 · 专业推荐</h3>
+          <div className="flex items-center gap-2 flex-wrap">
+            <h3 className="font-display text-base text-[var(--c-title)]">天赋匹配 · 专业推荐</h3>
+            {talentFilter.size > 0 && (
+              <span className="rounded-full bg-[var(--c-primary-15)] px-2 py-0.5 text-[10px] font-medium text-[var(--c-primary)]">
+                已选 {talentFilter.size} 项 · 多选模式
+              </span>
+            )}
+          </div>
           <p className="mt-0.5 text-xs text-[var(--c-secondary)]">
-            选择你的天赋类型，高亮匹配的专业。未测天赋？
+            可多选你的天赋类型，高亮匹配的专业（含任一选中天赋即命中）。未测天赋？
             <a href="#/talent-test" className="text-[var(--c-primary)] hover:underline">前往天赋测试 →</a>
           </p>
           <div className="mt-3 flex flex-wrap gap-2">
             <button
-              onClick={() => setTalentFilter("all")}
+              onClick={() => setTalentFilter(new Set())}
               className={`rounded-full border px-3 py-1 text-xs transition ${
-                talentFilter === "all"
+                allActive
                   ? "border-[var(--c-primary)] bg-[var(--c-primary-15)] text-[var(--c-primary)]"
                   : "border-[var(--c-border)] text-[var(--c-secondary)] hover:border-[var(--c-primary-30)]"
               }`}
             >
               全部
             </button>
-            {meta?.talents.map(t => (
-              <button
-                key={t.id}
-                onClick={() => setTalentFilter(talentFilter === t.id ? "all" : t.id)}
-                className={`flex items-center gap-1 rounded-full border px-3 py-1 text-xs transition ${
-                  talentFilter === t.id
-                    ? "border-transparent text-white"
-                    : "border-[var(--c-border)] text-[var(--c-secondary)] hover:border-[var(--c-primary-30)]"
-                }`}
-                style={talentFilter === t.id ? { background: t.color, color: "var(--c-hover-text)" } : {}}
-              >
-                <span className="h-1.5 w-1.5 rounded-full" style={{ background: t.color }} />
-                {t.name}
-              </button>
-            ))}
+            {meta?.talents.map(t => {
+              const active = talentFilter.has(t.id);
+              return (
+                <button
+                  key={t.id}
+                  onClick={() => toggle(t.id)}
+                  className={`flex items-center gap-1 rounded-full border px-3 py-1 text-xs transition ${
+                    active
+                      ? "border-transparent text-white"
+                      : "border-[var(--c-border)] text-[var(--c-secondary)] hover:border-[var(--c-primary-30)]"
+                  }`}
+                  style={active ? { background: t.color, color: "var(--c-hover-text)" } : {}}
+                >
+                  <span className="h-1.5 w-1.5 rounded-full" style={{ background: t.color }} />
+                  {t.name}
+                </button>
+              );
+            })}
           </div>
         </div>
       </div>
@@ -1238,7 +1258,7 @@ function FilterPanel(props: {
   scoreMax: number; setScoreMax: (v: number) => void;
   userScore: number | ""; setUserScore: (v: number | "") => void;
   onlyAboveUserScore: boolean; setOnlyAboveUserScore: (v: boolean) => void;
-  talentFilter: string; setTalentFilter: (v: string) => void;
+  talentFilter: Set<string>; setTalentFilter: (v: Set<string>) => void;
 }) {
   const { meta, tab, schoolList, tuitionRange } = props;
   // 院校下拉提示的展开状态（必须在任何 return 之前调用 hooks）
@@ -1642,7 +1662,7 @@ function TabButton({ active, onClick, count, children }: {
   );
 }
 
-function TalentTags({ talentsStr, meta, highlight }: { talentsStr: string; meta: Meta | null; highlight?: string }) {
+function TalentTags({ talentsStr, meta, highlight }: { talentsStr: string; meta: Meta | null; highlight?: Set<string> }) {
   const arr = (talentsStr || "").split(",").filter(Boolean);
   if (arr.length === 0) return <span className="text-[var(--c-secondary-50)]">-</span>;
   return (
@@ -1650,7 +1670,7 @@ function TalentTags({ talentsStr, meta, highlight }: { talentsStr: string; meta:
       {arr.map(id => {
         const t = meta?.talents.find(x => x.id === id);
         if (!t) return null;
-        const isHL = highlight && id === highlight;
+        const isHL = highlight && highlight.size > 0 && highlight.has(id);
         return (
           <span
             key={id}
@@ -1682,7 +1702,7 @@ function TuitionBadge({ tier, label }: { tier: number; label: string }) {
   );
 }
 
-function BenkeTable({ rows, talentFilter, meta }: { rows: BenkeRow[]; talentFilter: string; meta: Meta | null }) {
+function BenkeTable({ rows, talentFilter, meta }: { rows: BenkeRow[]; talentFilter: Set<string>; meta: Meta | null }) {
   return (
     <>
     <div className="hidden overflow-x-auto rounded-lg border border-[var(--c-border)] md:block">
@@ -1708,7 +1728,7 @@ function BenkeTable({ rows, talentFilter, meta }: { rows: BenkeRow[]; talentFilt
         </thead>
         <tbody>
           {rows.map((r, i) => {
-            const isHL = talentFilter !== "all" && (r[14] || "").split(",").includes(talentFilter);
+            const isHL = talentFilter.size > 0 && (r[14] || "").split(",").some(id => talentFilter.has(id));
             return (
               <tr
                 key={i}
@@ -1748,7 +1768,7 @@ function BenkeTable({ rows, talentFilter, meta }: { rows: BenkeRow[]; talentFilt
     {/* 移动端卡片视图 */}
     <div className="space-y-3 md:hidden">
       {rows.map((r, i) => {
-        const isHL = talentFilter !== "all" && (r[14] || "").split(",").includes(talentFilter);
+        const isHL = talentFilter.size > 0 && (r[14] || "").split(",").some(id => talentFilter.has(id));
         return (
           <div
             key={i}
@@ -1824,7 +1844,7 @@ function BenkeTable({ rows, talentFilter, meta }: { rows: BenkeRow[]; talentFilt
   );
 }
 
-function ZhuankeTable({ rows, talentFilter, meta }: { rows: ZhuankeRow[]; talentFilter: string; meta: Meta | null }) {
+function ZhuankeTable({ rows, talentFilter, meta }: { rows: ZhuankeRow[]; talentFilter: Set<string>; meta: Meta | null }) {
   return (
     <>
     <div className="hidden overflow-x-auto rounded-lg border border-[var(--c-border)] md:block">
@@ -1848,7 +1868,7 @@ function ZhuankeTable({ rows, talentFilter, meta }: { rows: ZhuankeRow[]; talent
         </thead>
         <tbody>
           {rows.map((r, i) => {
-            const isHL = talentFilter !== "all" && (r[11] || "").split(",").includes(talentFilter);
+            const isHL = talentFilter.size > 0 && (r[11] || "").split(",").some(id => talentFilter.has(id));
             return (
               <tr
                 key={i}
@@ -1881,7 +1901,7 @@ function ZhuankeTable({ rows, talentFilter, meta }: { rows: ZhuankeRow[]; talent
     {/* 移动端卡片视图 */}
     <div className="space-y-3 md:hidden">
       {rows.map((r, i) => {
-        const isHL = talentFilter !== "all" && (r[11] || "").split(",").includes(talentFilter);
+        const isHL = talentFilter.size > 0 && (r[11] || "").split(",").some(id => talentFilter.has(id));
         return (
           <div
             key={i}
