@@ -703,7 +703,7 @@ export default function GaokaoPage() {
       {/* 顶部导航 */}
       <header className="sticky top-0 z-30 border-b border-[var(--c-border)] bg-[var(--c-bg)] backdrop-blur-md">
         <div className="mx-auto flex max-w-[1200px] items-center justify-between px-4 py-3 md:px-6">
-          <a href="#/" className="flex items-center gap-2 text-[var(--c-body)] transition hover:text-[var(--c-primary)]">
+          <a href="#/talent" className="flex items-center gap-2 text-[var(--c-body)] transition hover:text-[var(--c-primary)]">
             <ChevronLeft className="h-4 w-4" />
             <span className="text-sm">天赋星图</span>
           </a>
@@ -1185,7 +1185,7 @@ function TalentBanner({ meta, talentFilter, setTalentFilter }: {
           <h3 className="font-display text-base text-[var(--c-title)]">天赋匹配 · 专业推荐</h3>
           <p className="mt-0.5 text-xs text-[var(--c-secondary)]">
             选择你的天赋类型，高亮匹配的专业。未测天赋？
-            <a href="https://kukuk-blip.github.io/-/#/talent" target="_blank" rel="noopener" className="text-[var(--c-primary)] hover:underline">前往天赋测试 →</a>
+            <a href="#/talent-test" className="text-[var(--c-primary)] hover:underline">前往天赋测试 →</a>
           </p>
           <div className="mt-3 flex flex-wrap gap-2">
             <button
