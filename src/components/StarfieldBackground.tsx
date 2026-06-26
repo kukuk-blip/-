@@ -2,28 +2,24 @@ import { useEffect, useRef } from "react";
 
 /**
  * 银白星空动态背景
- * - 底层 Canvas：银白色闪烁星星 + 偶尔划过的流星
- * - 上层 Canvas：鼠标滑动时泛起银白涟漪（screen 混合模式提亮）
+ * - 银白色闪烁星星 + 偶尔划过的流星
+ * - 鼠标交互：周围星星被引力吸引聚集，鼠标移开后弹簧回归原位（聚集与分散）
  * - 大星点带十字星芒，流星带渐变尾迹
  * - 移动端自动减少星星数量，性能更优
  */
 export default function StarfieldBackground() {
-  const starCanvasRef = useRef<HTMLCanvasElement>(null);
-  const rippleCanvasRef = useRef<HTMLCanvasElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
 
   useEffect(() => {
-    const canvas = starCanvasRef.current;
-    const rippleCanvas = rippleCanvasRef.current;
-    if (!canvas || !rippleCanvas) return;
+    const canvas = canvasRef.current;
+    if (!canvas) return;
     const ctx = canvas.getContext("2d");
-    const rippleCtx = rippleCanvas.getContext("2d");
-    if (!ctx || !rippleCtx) return;
+    if (!ctx) return;
 
     let width = 0;
     let height = 0;
     let stars: Star[] = [];
     let meteors: Meteor[] = [];
-    let ripples: Ripple[] = [];
     let animationId = 0;
     let lastTime = performance.now();
     let resizeTimeout: number | undefined;
@@ -31,18 +27,23 @@ export default function StarfieldBackground() {
     const isMobile = window.innerWidth < 768;
 
     // 鼠标状态
-    let mouseX = -200;
-    let mouseY = -200;
-    let prevMouseX = -200;
-    let prevMouseY = -200;
+    let mouseX = -9999;
+    let mouseY = -9999;
     let mouseOnScreen = false;
-    // 涟漪生成距离阈值（移动端稍大，减少密度）
-    const rippleDistThreshold = isMobile ? 18 : 14;
+    // 鼠标引力参数
+    const attractRadius = isMobile ? 130 : 170;   // 影响半径
+    const attractStrength = isMobile ? 0.35 : 0.45; // 引力强度
+    const springK = 0.06;   // 回归原位的弹簧系数
+    const damping = 0.82;   // 阻尼，避免无限震荡
 
-    // ==================== 星星 ====================
+    // ==================== 星星（带物理） ====================
     class Star {
+      originX = 0;
+      originY = 0;
       x = 0;
       y = 0;
+      vx = 0;
+      vy = 0;
       radius = 0.3;
       baseAlpha = 0.35;
       twinklePhase = 0;
@@ -57,8 +58,12 @@ export default function StarfieldBackground() {
       }
 
       reset() {
-        this.x = Math.random() * width;
-        this.y = Math.random() * height;
+        this.originX = Math.random() * width;
+        this.originY = Math.random() * height;
+        this.x = this.originX;
+        this.y = this.originY;
+        this.vx = 0;
+        this.vy = 0;
         this.radius = 0.3 + Math.random() * 2.2;
         this.baseAlpha = 0.35 + Math.random() * 0.65;
         this.twinklePhase = Math.random() * Math.PI * 2;
@@ -68,6 +73,29 @@ export default function StarfieldBackground() {
 
       update(deltaTime: number) {
         this.twinklePhase += this.twinkleSpeed * deltaTime;
+
+        // 弹簧回归原位
+        const fx = (this.originX - this.x) * springK;
+        const fy = (this.originY - this.y) * springK;
+        this.vx = (this.vx + fx) * damping;
+        this.vy = (this.vy + fy) * damping;
+
+        // 鼠标引力（聚集）
+        if (mouseOnScreen) {
+          const dx = mouseX - this.x;
+          const dy = mouseY - this.y;
+          const distSq = dx * dx + dy * dy;
+          if (distSq < attractRadius * attractRadius && distSq > 1) {
+            const dist = Math.sqrt(distSq);
+            // 距离越近，引力越大；距离为 0 时不施力，避免坍缩到一点
+            const force = (1 - dist / attractRadius) * attractStrength;
+            this.vx += (dx / dist) * force;
+            this.vy += (dy / dist) * force;
+          }
+        }
+
+        this.x += this.vx;
+        this.y += this.vy;
       }
 
       getAlpha() {
@@ -292,74 +320,12 @@ export default function StarfieldBackground() {
       }
     }
 
-    // ==================== 涟漪 ====================
-    class Ripple {
-      x: number;
-      y: number;
-      initialRadius: number;
-      maxRadius: number;
-      currentRadius: number;
-      maxLife: number;
-      life: number;
-      intensity = 1.0;
-
-      constructor(x: number, y: number) {
-        this.x = x;
-        this.y = y;
-        this.initialRadius = 12 + Math.random() * 28;
-        this.maxRadius = 180 + Math.random() * 320;
-        this.currentRadius = this.initialRadius;
-        this.maxLife = 1.2 + Math.random() * 2.0;
-        this.life = this.maxLife;
-      }
-
-      update(deltaTime: number): boolean {
-        this.life -= deltaTime;
-        if (this.life <= 0) {
-          this.life = 0;
-          this.intensity = 0;
-          return false;
-        }
-        const lifeRatio = this.life / this.maxLife;
-        // smoothstep 衰减
-        this.intensity = lifeRatio * lifeRatio * (3 - 2 * lifeRatio);
-        this.currentRadius =
-          this.initialRadius + (this.maxRadius - this.initialRadius) * (1 - lifeRatio);
-        return true;
-      }
-
-      draw(ctx: CanvasRenderingContext2D) {
-        if (this.intensity < 0.003) return;
-        const r = this.currentRadius;
-        const intensity = this.intensity;
-
-        // 水波径向渐变：中心亮→暗→波纹亮→波谷暗→微弱波纹→消失
-        const grad = ctx.createRadialGradient(this.x, this.y, r * 0.02, this.x, this.y, r);
-        const baseAlpha = intensity;
-        grad.addColorStop(0, `rgba(225,235,255,${baseAlpha * 0.65})`);
-        grad.addColorStop(0.08, `rgba(220,230,252,${baseAlpha * 0.55})`);
-        grad.addColorStop(0.2, `rgba(200,215,245,${baseAlpha * 0.28})`);
-        grad.addColorStop(0.35, `rgba(215,228,250,${baseAlpha * 0.42})`);
-        grad.addColorStop(0.5, `rgba(190,205,238,${baseAlpha * 0.12})`);
-        grad.addColorStop(0.65, `rgba(200,218,245,${baseAlpha * 0.2})`);
-        grad.addColorStop(0.82, `rgba(180,198,230,${baseAlpha * 0.04})`);
-        grad.addColorStop(1, "rgba(160,180,215,0)");
-
-        ctx.beginPath();
-        ctx.arc(this.x, this.y, r, 0, Math.PI * 2);
-        ctx.fillStyle = grad;
-        ctx.fill();
-      }
-    }
-
     // ==================== 尺寸与初始化 ====================
     function resizeCanvas() {
       width = window.innerWidth;
       height = window.innerHeight;
       canvas!.width = width;
       canvas!.height = height;
-      rippleCanvas!.width = width;
-      rippleCanvas!.height = height;
 
       const divisor = isMobile ? 4200 : 2800;
       const targetStarCount = Math.floor((width * height) / divisor);
@@ -369,18 +335,14 @@ export default function StarfieldBackground() {
       );
 
       while (stars.length < clampedCount) {
-        const star = new Star();
-        star.x = Math.random() * width;
-        star.y = Math.random() * height;
-        stars.push(star);
+        stars.push(new Star());
       }
       while (stars.length > clampedCount) {
         stars.pop();
       }
       stars.forEach((star) => {
-        if (star.x > width || star.y > height) {
-          star.x = Math.random() * width;
-          star.y = Math.random() * height;
+        if (star.originX > width || star.originY > height) {
+          star.reset();
         }
       });
     }
@@ -394,11 +356,7 @@ export default function StarfieldBackground() {
         Math.min(isMobile ? 320 : 600, targetStarCount)
       );
       for (let i = 0; i < clampedCount; i++) {
-        const star = new Star();
-        star.x = Math.random() * width;
-        star.y = Math.random() * height;
-        star.twinklePhase = Math.random() * Math.PI * 2;
-        stars.push(star);
+        stars.push(new Star());
       }
     }
 
@@ -419,34 +377,12 @@ export default function StarfieldBackground() {
       }, delay);
     }
 
-    // ==================== 涟漪生成 ====================
-    function spawnRipple(x: number, y: number) {
-      // 限制涟漪总数，移除最旧的一个
-      if (ripples.length >= 70) {
-        ripples.shift();
-      }
-      ripples.push(new Ripple(x, y));
-    }
-
-    // 生成大涟漪（点击时增强效果）
-    function spawnBigRipple(x: number, y: number) {
-      if (ripples.length >= 70) ripples.shift();
-      const big = new Ripple(x, y);
-      big.initialRadius = 30;
-      big.maxRadius = 350 + Math.random() * 200;
-      big.maxLife = 1.8 + Math.random() * 1.5;
-      big.life = big.maxLife;
-      big.currentRadius = big.initialRadius;
-      ripples.push(big);
-    }
-
     // ==================== 动画循环 ====================
     function animate(currentTime: number) {
       const rawDelta = (currentTime - lastTime) / 1000;
       const deltaTime = Math.min(rawDelta, 0.1);
       lastTime = currentTime;
 
-      // 星空层
       ctx!.clearRect(0, 0, width, height);
 
       const bgGrad = ctx!.createRadialGradient(
@@ -474,108 +410,35 @@ export default function StarfieldBackground() {
         }
       }
 
-      // 涟漪层（独立 canvas，screen 混合模式提亮下方）
-      rippleCtx!.clearRect(0, 0, width, height);
-      for (let i = ripples.length - 1; i >= 0; i--) {
-        const ripple = ripples[i];
-        const alive = ripple.update(deltaTime);
-        if (!alive) {
-          ripples.splice(i, 1);
-        } else {
-          ripple.draw(rippleCtx!);
-        }
-      }
-
-      // 鼠标当前位置的主光晕（聚光灯跟随）
-      if (mouseOnScreen && mouseX > -100 && mouseY > -100) {
-        const glowRadius = 130;
-        const glowGrad = rippleCtx!.createRadialGradient(
-          mouseX, mouseY, 0, mouseX, mouseY, glowRadius
-        );
-        glowGrad.addColorStop(0, "rgba(228,238,255,0.38)");
-        glowGrad.addColorStop(0.15, "rgba(220,232,252,0.3)");
-        glowGrad.addColorStop(0.35, "rgba(200,218,245,0.15)");
-        glowGrad.addColorStop(0.6, "rgba(175,195,230,0.04)");
-        glowGrad.addColorStop(0.8, "rgba(150,175,215,0.008)");
-        glowGrad.addColorStop(1, "rgba(130,155,195,0)");
-
-        rippleCtx!.beginPath();
-        rippleCtx!.arc(mouseX, mouseY, glowRadius, 0, Math.PI * 2);
-        rippleCtx!.fillStyle = glowGrad;
-        rippleCtx!.fill();
-
-        // 内层更亮的光核
-        const innerGlow = rippleCtx!.createRadialGradient(
-          mouseX, mouseY, 0, mouseX, mouseY, 45
-        );
-        innerGlow.addColorStop(0, "rgba(240,245,255,0.5)");
-        innerGlow.addColorStop(0.4, "rgba(225,235,252,0.25)");
-        innerGlow.addColorStop(1, "rgba(200,215,240,0)");
-
-        rippleCtx!.beginPath();
-        rippleCtx!.arc(mouseX, mouseY, 45, 0, Math.PI * 2);
-        rippleCtx!.fillStyle = innerGlow;
-        rippleCtx!.fill();
-      }
-
       animationId = requestAnimationFrame(animate);
     }
 
     // ==================== 鼠标交互 ====================
-    // 在移动轨迹上按距离插值生成连续涟漪
-    function spawnRipplesAlongPath(x0: number, y0: number, x1: number, y1: number) {
-      const dx = x1 - x0;
-      const dy = y1 - y0;
-      const dist = Math.sqrt(dx * dx + dy * dy);
-      if (dist > rippleDistThreshold && x0 > -100) {
-        // 在轨迹上按阈值插值生成多个涟漪（模拟连续波纹）
-        const steps = Math.floor(dist / rippleDistThreshold);
-        for (let i = 1; i <= steps; i++) {
-          const t = i / (steps + 1);
-          spawnRipple(x0 + dx * t, y0 + dy * t);
-        }
-      } else if (dist > 3 && x0 < -100) {
-        // 鼠标刚进入屏幕，生成第一个涟漪
-        spawnRipple(x1, y1);
-      }
-    }
-
     function onMouseMove(e: MouseEvent) {
-      prevMouseX = mouseX;
-      prevMouseY = mouseY;
       mouseX = e.clientX;
       mouseY = e.clientY;
       mouseOnScreen = true;
-      spawnRipplesAlongPath(prevMouseX, prevMouseY, mouseX, mouseY);
     }
 
     function onMouseEnter(e: MouseEvent) {
       mouseX = e.clientX;
       mouseY = e.clientY;
-      prevMouseX = -200;
-      prevMouseY = -200;
       mouseOnScreen = true;
-      spawnRipple(mouseX, mouseY);
     }
 
     function onMouseLeave() {
       mouseOnScreen = false;
-      // 鼠标离开时在最后位置留下一个涟漪
-      if (mouseX > -100 && mouseY > -100) {
-        spawnRipple(mouseX, mouseY);
-      }
+      mouseX = -9999;
+      mouseY = -9999;
     }
 
-    // 移动端 touch 生成涟漪
+    // 移动端 touch
     function onTouchMove(e: TouchEvent) {
       const touch = e.touches[0];
       if (!touch) return;
-      prevMouseX = mouseX;
-      prevMouseY = mouseY;
       mouseX = touch.clientX;
       mouseY = touch.clientY;
       mouseOnScreen = true;
-      spawnRipplesAlongPath(prevMouseX, prevMouseY, mouseX, mouseY);
     }
 
     function onTouchStart(e: TouchEvent) {
@@ -583,40 +446,29 @@ export default function StarfieldBackground() {
       if (!touch) return;
       mouseX = touch.clientX;
       mouseY = touch.clientY;
-      prevMouseX = -200;
-      prevMouseY = -200;
       mouseOnScreen = true;
-      spawnRipple(mouseX, mouseY);
     }
 
     function onTouchEnd() {
-      if (mouseX > -100 && mouseY > -100) {
-        spawnRipple(mouseX, mouseY);
-      }
       mouseOnScreen = false;
+      mouseX = -9999;
+      mouseY = -9999;
     }
 
-    // 点击：触发流星 + 生成大涟漪（小彩蛋）
+    // 点击：触发流星（小彩蛋）—— 流星从点击位置上方出现，朝向点击方向飞去
     function onClick(e: MouseEvent) {
-      // 流星从点击位置上方出现，朝向点击方向飞去
-      if (meteors.length < (isMobile ? 2 : 4)) {
-        const meteor = new Meteor();
-        const cx = e.clientX;
-        const cy = e.clientY;
-        meteor.x = cx + (Math.random() - 0.5) * 200;
-        meteor.y = cy - 150 - Math.random() * 200;
-        meteor.angle = Math.atan2(cy - meteor.y, cx - meteor.x);
-        if (meteor.angle < Math.PI * 0.3) meteor.angle = Math.PI * 0.3;
-        if (meteor.angle > Math.PI * 0.7) meteor.angle = Math.PI * 0.7;
-        meteor.speed = 500 + Math.random() * 600;
-        meteor.length = 80 + Math.random() * 140;
-        meteors.push(meteor);
-      }
-      // 点击生成普通涟漪 + 延迟大涟漪增强
-      spawnRipple(e.clientX, e.clientY);
-      window.setTimeout(() => {
-        spawnBigRipple(e.clientX, e.clientY);
-      }, 150);
+      if (meteors.length >= (isMobile ? 2 : 4)) return;
+      const meteor = new Meteor();
+      const cx = e.clientX;
+      const cy = e.clientY;
+      meteor.x = cx + (Math.random() - 0.5) * 200;
+      meteor.y = cy - 150 - Math.random() * 200;
+      meteor.angle = Math.atan2(cy - meteor.y, cx - meteor.x);
+      if (meteor.angle < Math.PI * 0.3) meteor.angle = Math.PI * 0.3;
+      if (meteor.angle > Math.PI * 0.7) meteor.angle = Math.PI * 0.7;
+      meteor.speed = 500 + Math.random() * 600;
+      meteor.length = 80 + Math.random() * 140;
+      meteors.push(meteor);
     }
 
     // ==================== 启动 ====================
@@ -624,7 +476,6 @@ export default function StarfieldBackground() {
       resizeCanvas();
       initStars();
       meteors = [];
-      ripples = [];
 
       if (Math.random() < 0.7) spawnMeteor();
       if (Math.random() < 0.4) {
@@ -644,9 +495,9 @@ export default function StarfieldBackground() {
     }
 
     window.addEventListener("resize", onResize);
-    window.addEventListener("mousemove", onMouseMove);
-    window.addEventListener("mouseleave", onMouseLeave);
+    window.addEventListener("mousemove", onMouseMove, { passive: true });
     window.addEventListener("mouseenter", onMouseEnter);
+    window.addEventListener("mouseleave", onMouseLeave);
     window.addEventListener("touchmove", onTouchMove, { passive: true });
     window.addEventListener("touchstart", onTouchStart, { passive: true });
     window.addEventListener("touchend", onTouchEnd);
@@ -661,8 +512,8 @@ export default function StarfieldBackground() {
       window.clearTimeout(resizeTimeout);
       window.removeEventListener("resize", onResize);
       window.removeEventListener("mousemove", onMouseMove);
-      window.removeEventListener("mouseleave", onMouseLeave);
       window.removeEventListener("mouseenter", onMouseEnter);
+      window.removeEventListener("mouseleave", onMouseLeave);
       window.removeEventListener("touchmove", onTouchMove);
       window.removeEventListener("touchstart", onTouchStart);
       window.removeEventListener("touchend", onTouchEnd);
@@ -672,17 +523,10 @@ export default function StarfieldBackground() {
 
   return (
     <div className="pointer-events-none fixed inset-0 z-0 overflow-hidden">
-      {/* 星空层 */}
       <canvas
-        ref={starCanvasRef}
+        ref={canvasRef}
         className="absolute inset-0 h-full w-full"
         style={{ display: "block" }}
-      />
-      {/* 涟漪层（screen 混合模式：白色提亮，透明不影响） */}
-      <canvas
-        ref={rippleCanvasRef}
-        className="absolute inset-0 h-full w-full"
-        style={{ display: "block", mixBlendMode: "screen" }}
       />
       {/* 底部柔光氛围 */}
       <div
