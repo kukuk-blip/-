@@ -182,7 +182,7 @@ export default function StarfieldBackground() {
               cx={s.cx}
               cy={s.cy}
               r={s.r}
-              fill="#f5b942"
+              fill="#ffffff"
               className="animate-twinkle"
               style={{
                 opacity: s.opacity,
@@ -209,11 +209,19 @@ export default function StarfieldBackground() {
           viewBox="0 0 100 100"
           aria-hidden="true"
         >
+          {/* 银白星光晕染渐变 */}
+          <defs>
+            <radialGradient id="starGlow" cx="50%" cy="50%" r="50%">
+              <stop offset="0%" stopColor="#ffffff" stopOpacity="0.9" />
+              <stop offset="35%" stopColor="#dce8ff" stopOpacity="0.4" />
+              <stop offset="100%" stopColor="#a8c5ff" stopOpacity="0" />
+            </radialGradient>
+          </defs>
           {CONSTELLATIONS.map((c, ci) => {
             const isActive = activeIdx === ci;
             const lineOpacity = isActive ? 0.75 : 0.22;
-            const lineColor = isActive ? "#fcd34d" : "#f5b942";
-            const starColor = isActive ? "#fff" : "#f5b942";
+            const lineColor = isActive ? "#a8d8ff" : "#c9d4e8";
+            const starColor = isActive ? "#ffffff" : "#e8edf5";
             const glowOpacity = isActive ? 0.9 : 0.5;
             return (
               <g key={c.name}>
@@ -235,16 +243,15 @@ export default function StarfieldBackground() {
                 {/* 星点 */}
                 {c.stars.map((s, si) => (
                   <g key={si}>
-                    {/* 光晕 */}
+                    {/* 光晕：银白带淡蓝 */}
                     <circle
                       cx={s.x}
                       cy={s.y}
-                      r={s.size * 2.5}
-                      fill={lineColor}
-                      opacity={glowOpacity * 0.18}
+                      r={s.size * 2.8}
+                      fill="url(#starGlow)"
+                      opacity={glowOpacity * 0.5}
                       style={{
                         transition: "opacity 0.5s ease",
-                        filter: "blur(1px)",
                       }}
                     />
                     {/* 核心 */}
@@ -269,7 +276,7 @@ export default function StarfieldBackground() {
                     y={c.cy + 8}
                     textAnchor="middle"
                     fontSize="1.6"
-                    fill="#fcd34d"
+                    fill="#a8d8ff"
                     opacity="0.85"
                     style={{
                       fontFamily: '"Cormorant Garamond", "Noto Serif SC", serif',
