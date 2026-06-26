@@ -53,6 +53,121 @@ const TUITION_LABELS: Record<number, { label: string; color: string }> = {
 
 const PAGE_SIZE = 50;
 
+// ============ 选科要求映射 ============
+// 数据中"再选科目"字段值 → 标准化分类
+const SUBJECT_ALIASES: Record<string, string> = {
+  "不限": "不限",
+  "化学": "化学",
+  "化学或生物学": "化学",  // 含化学
+  "化学,生物学": "化学",
+  "生物学": "生物",
+  "生物或化学": "生物",
+  "思想政治": "政治",
+  "政治": "政治",
+  "地理": "地理",
+  "物理": "物理",
+  "历史": "历史",
+};
+
+// 选科筛选选项（与用户要求对齐）
+const SUBJECT_OPTIONS = [
+  { key: "不限", label: "不限", color: "#9ca3af" },
+  { key: "物理", label: "物理", color: "#60a5fa" },
+  { key: "化学", label: "化学", color: "#34d399" },
+  { key: "政治", label: "政治", color: "#fbbf24" },
+  { key: "生物", label: "生物", color: "#a78bfa" },
+  { key: "地理", label: "地理", color: "#f472b6" },
+  { key: "历史", label: "历史", color: "#fb923c" },
+];
+
+// ============ 特殊类别匹配（基于 2026 招生考试之友分类）============
+interface CategoryDef {
+  key: string;
+  label: string;
+  color: string;
+  desc: string;
+  // 匹配函数：基于院校名 + 专业名/包含专业
+  match: (schoolName: string, majorText: string) => boolean;
+}
+
+const CATEGORY_DEFS: CategoryDef[] = [
+  {
+    key: "art",
+    label: "艺术类",
+    color: "#ec4899",
+    desc: "音乐/美术/设计/戏剧/影视/舞蹈等",
+    match: (_s, m) => /音乐|舞蹈|美术|绘画|雕塑|设计学|视觉传达|动画|戏剧|影视|摄影|播音|表演|录音|作曲|书法|艺术|戏曲|影视学/.test(m),
+  },
+  {
+    key: "military",
+    label: "军警提前批",
+    color: "#dc2626",
+    desc: "军事/公安/司法/警察类院校",
+    match: (s, m) => /军事|公安|警察|司法|警官|军校|国防|武装|边防|消防|警犬|侦查/.test(s + m),
+  },
+  {
+    key: "sport",
+    label: "体育类",
+    color: "#16a34a",
+    desc: "体育教育/运动训练等",
+    match: (_s, m) => /体育|运动训练|运动康复|社会体育|休闲体育|武术与民族传统/.test(m),
+  },
+  {
+    key: "teacher",
+    label: "师范类",
+    color: "#0891b2",
+    desc: "师范/教育类专业",
+    match: (s, m) => /师范|教育|学前|小学教育|学科教育|公费师范/.test(s + m),
+  },
+  {
+    key: "medical",
+    label: "医学类",
+    color: "#0ea5e9",
+    desc: "临床/口腔/中医/护理等",
+    match: (_s, m) => /临床医学|口腔医学|中医|中药|药学|护理|医学|预防医学|影像|检验|康复治疗/.test(m),
+  },
+  {
+    key: "cooperation",
+    label: "中外合作",
+    color: "#f43f5e",
+    desc: "中外合作办学/国际学院",
+    match: (s, m) => /中外合作|国际学院|联办|莫斯科|利莫瑞克|乌拉尔|帕特里斯|中俄|中德|中法|中英|中日|中韩|中爱|马拉加/.test(s + m),
+  },
+  {
+    key: "software",
+    label: "软件类",
+    color: "#f59e0b",
+    desc: "软件工程/软件学院",
+    match: (s, m) => /软件工程|软件类|软件学院|软件技术/.test(s + m),
+  },
+  {
+    key: "special",
+    label: "专项计划",
+    color: "#7c3aed",
+    desc: "国家/地方/高校专项",
+    match: (s, m) => /国家专项|地方专项|高校专项|专项计划|公费师范|定向/.test(s + m),
+  },
+];
+
+// 标准化科目值（将数据中的"再选科目"映射为标准分类）
+function normalizeSubject(raw: string): string {
+  if (!raw) return "不限";
+  // 直接查表
+  if (SUBJECT_ALIASES[raw]) return SUBJECT_ALIASES[raw];
+  // 模糊匹配
+  for (const [k, v] of Object.entries(SUBJECT_ALIASES)) {
+    if (raw.includes(k)) return v;
+  }
+  return "不限";
+}
+
+// 判断记录是否属于某特殊类别
+function matchCategory(schoolName: string, majorText: string, catKey: string): boolean {
+  const def = CATEGORY_DEFS.find(c => c.key === catKey);
+  if (!def) return false;
+  return def.match(schoolName, majorText);
+}
+
 // ============ 省级数据配置 ============
 // 当前仅河南省数据可用；其余省份标记为数据整理中
 interface ProvinceInfo {
@@ -112,9 +227,20 @@ export default function GaokaoPage() {
   const [searchSchool, setSearchSchool] = useState("");
   const [searchMajor, setSearchMajor] = useState("");
   const [tuitionFilter, setTuitionFilter] = useState<number | "all">("all");
-  const [subjectFilter, setSubjectFilter] = useState<string>("all");
+  // 选科要求：多选（物理/化学/政治/生物/地理/历史/不限）
+  const [subjectFilter, setSubjectFilter] = useState<Set<string>>(new Set());
+  // 特殊类别：多选（艺术类/军警提前批/体育类/师范类/医学类/中外合作/软件类/专项计划）
+  const [categoryFilter, setCategoryFilter] = useState<Set<string>>(new Set());
+  // 录取最低分范围（双向筛选：最低分下限 ~ 最低分上限）
   const [scoreMin, setScoreMin] = useState<number>(0);
   const [scoreMax, setScoreMax] = useState<number>(800);
+  // 录取最高分范围（双向筛选：最高分下限 ~ 最高分上限，与最低分独立）
+  const [maxScoreMin, setMaxScoreMin] = useState<number>(0);
+  const [maxScoreMax, setMaxScoreMax] = useState<number>(800);
+  // 用户输入的参考分数（当年高考分数）
+  const [userScore, setUserScore] = useState<number | "">("");
+  // 是否仅显示用户分数可达的记录
+  const [onlyAboveUserScore, setOnlyAboveUserScore] = useState(false);
   const [talentFilter, setTalentFilter] = useState<string>("all");
   const [showFilters, setShowFilters] = useState(true);
 
@@ -154,21 +280,49 @@ export default function GaokaoPage() {
     if (tab === "benke") {
       setScoreMin(meta.benkeScoreRange.min);
       setScoreMax(meta.benkeScoreRange.max);
+      setMaxScoreMin(meta.benkeScoreRange.min);
+      setMaxScoreMax(meta.benkeScoreRange.max);
     } else {
       setScoreMin(meta.zhuankeScoreRange.min);
       setScoreMax(meta.zhuankeScoreRange.max);
+      setMaxScoreMin(meta.zhuankeScoreRange.min);
+      setMaxScoreMax(meta.zhuankeScoreRange.max);
     }
     setPageB(1);
     setPageZ(1);
   }, [tab, meta]);
+
+  // 初始化时设置最高分范围
+  useEffect(() => {
+    if (!meta) return;
+    setMaxScoreMin(meta.benkeScoreRange.min);
+    setMaxScoreMax(meta.benkeScoreRange.max);
+  }, [meta]);
 
   // ============ 过滤函数 ============
   const filterBenke = (r: BenkeRow) => {
     if (searchSchool && !r[2].includes(searchSchool.trim())) return false;
     if (searchMajor && !r[6].includes(searchMajor.trim())) return false;
     if (tuitionFilter !== "all" && r[15] !== tuitionFilter) return false;
-    if (subjectFilter !== "all" && r[4] !== subjectFilter) return false;
+    // 选科要求：多选匹配（任一即可）
+    if (subjectFilter.size > 0) {
+      const normalized = normalizeSubject(r[4]);
+      if (!subjectFilter.has(normalized)) return false;
+    }
+    // 特殊类别：多选匹配（选中了任一类别且记录属于该类别即通过）
+    if (categoryFilter.size > 0) {
+      let matched = false;
+      for (const cat of categoryFilter) {
+        if (matchCategory(r[2], r[6], cat)) { matched = true; break; }
+      }
+      if (!matched) return false;
+    }
+    // 录取最低分范围（双向）
     if (r[10] < scoreMin || r[10] > scoreMax) return false;
+    // 录取最高分范围（双向，与最低分独立）
+    if (r[8] != null && (r[8] < maxScoreMin || r[8] > maxScoreMax)) return false;
+    // 用户参考分数筛选
+    if (onlyAboveUserScore && userScore !== "" && r[10] > Number(userScore)) return false;
     if (talentFilter !== "all") {
       const talents = (r[14] || "").split(",").filter(Boolean);
       if (!talents.includes(talentFilter)) return false;
@@ -180,8 +334,21 @@ export default function GaokaoPage() {
     if (searchSchool && !r[2].includes(searchSchool.trim())) return false;
     if (searchMajor && !r[10].includes(searchMajor.trim())) return false;
     if (tuitionFilter !== "all" && r[12] !== tuitionFilter) return false;
-    if (subjectFilter !== "all" && r[4] !== subjectFilter) return false;
+    if (subjectFilter.size > 0) {
+      const normalized = normalizeSubject(r[4]);
+      if (!subjectFilter.has(normalized)) return false;
+    }
+    if (categoryFilter.size > 0) {
+      let matched = false;
+      for (const cat of categoryFilter) {
+        if (matchCategory(r[2], r[10], cat)) { matched = true; break; }
+      }
+      if (!matched) return false;
+    }
+    // 专科批：r[8] 是最低分，r[6] 是最高分
     if (r[8] < scoreMin || r[8] > scoreMax) return false;
+    if (r[6] != null && (r[6] < maxScoreMin || r[6] > maxScoreMax)) return false;
+    if (onlyAboveUserScore && userScore !== "" && r[8] > Number(userScore)) return false;
     if (talentFilter !== "all") {
       const talents = (r[11] || "").split(",").filter(Boolean);
       if (!talents.includes(talentFilter)) return false;
@@ -189,8 +356,8 @@ export default function GaokaoPage() {
     return true;
   };
 
-  const filteredB = useMemo(() => data?.b.filter(filterBenke) ?? [], [data, searchSchool, searchMajor, tuitionFilter, subjectFilter, scoreMin, scoreMax, talentFilter]);
-  const filteredZ = useMemo(() => data?.z.filter(filterZhuanke) ?? [], [data, searchSchool, searchMajor, tuitionFilter, subjectFilter, scoreMin, scoreMax, talentFilter]);
+  const filteredB = useMemo(() => data?.b.filter(filterBenke) ?? [], [data, searchSchool, searchMajor, tuitionFilter, subjectFilter, categoryFilter, scoreMin, scoreMax, maxScoreMin, maxScoreMax, onlyAboveUserScore, userScore, talentFilter]);
+  const filteredZ = useMemo(() => data?.z.filter(filterZhuanke) ?? [], [data, searchSchool, searchMajor, tuitionFilter, subjectFilter, categoryFilter, scoreMin, scoreMax, maxScoreMin, maxScoreMax, onlyAboveUserScore, userScore, talentFilter]);
 
   const pagedB = filteredB.slice((pageB - 1) * PAGE_SIZE, pageB * PAGE_SIZE);
   const pagedZ = filteredZ.slice((pageZ - 1) * PAGE_SIZE, pageZ * PAGE_SIZE);
@@ -201,18 +368,24 @@ export default function GaokaoPage() {
     setSearchSchool("");
     setSearchMajor("");
     setTuitionFilter("all");
-    setSubjectFilter("all");
+    setSubjectFilter(new Set());
+    setCategoryFilter(new Set());
     setTalentFilter("all");
+    setOnlyAboveUserScore(false);
     if (meta) {
-      setScoreMin(tab === "benke" ? meta.benkeScoreRange.min : meta.zhuankeScoreRange.min);
-      setScoreMax(tab === "benke" ? meta.benkeScoreRange.max : meta.zhuankeScoreRange.max);
+      const range = tab === "benke" ? meta.benkeScoreRange : meta.zhuankeScoreRange;
+      setScoreMin(range.min);
+      setScoreMax(range.max);
+      setMaxScoreMin(range.min);
+      setMaxScoreMax(range.max);
     }
     setPageB(1);
     setPageZ(1);
   };
 
-  const hasActiveFilters = searchSchool || searchMajor || tuitionFilter !== "all" ||
-    subjectFilter !== "all" || talentFilter !== "all";
+  const hasActiveFilters = !!(searchSchool || searchMajor || tuitionFilter !== "all" ||
+    subjectFilter.size > 0 || categoryFilter.size > 0 || talentFilter !== "all" ||
+    onlyAboveUserScore);
 
   // ============ 渲染 ============
   if (loading) {
@@ -311,8 +484,13 @@ export default function GaokaoPage() {
             searchMajor={searchMajor} setSearchMajor={(v) => { setSearchMajor(v); setPageB(1); setPageZ(1); }}
             tuitionFilter={tuitionFilter} setTuitionFilter={(v) => { setTuitionFilter(v); setPageB(1); setPageZ(1); }}
             subjectFilter={subjectFilter} setSubjectFilter={(v) => { setSubjectFilter(v); setPageB(1); setPageZ(1); }}
+            categoryFilter={categoryFilter} setCategoryFilter={(v) => { setCategoryFilter(v); setPageB(1); setPageZ(1); }}
             scoreMin={scoreMin} setScoreMin={(v) => { setScoreMin(v); setPageB(1); setPageZ(1); }}
             scoreMax={scoreMax} setScoreMax={(v) => { setScoreMax(v); setPageB(1); setPageZ(1); }}
+            maxScoreMin={maxScoreMin} setMaxScoreMin={(v) => { setMaxScoreMin(v); setPageB(1); setPageZ(1); }}
+            maxScoreMax={maxScoreMax} setMaxScoreMax={(v) => { setMaxScoreMax(v); setPageB(1); setPageZ(1); }}
+            userScore={userScore} setUserScore={(v) => { setUserScore(v); setPageB(1); setPageZ(1); }}
+            onlyAboveUserScore={onlyAboveUserScore} setOnlyAboveUserScore={(v) => { setOnlyAboveUserScore(v); setPageB(1); setPageZ(1); }}
             talentFilter={talentFilter} setTalentFilter={(v) => { setTalentFilter(v); setPageB(1); setPageZ(1); }}
           />
         )}
@@ -580,14 +758,27 @@ function FilterPanel(props: {
   searchSchool: string; setSearchSchool: (v: string) => void;
   searchMajor: string; setSearchMajor: (v: string) => void;
   tuitionFilter: number | "all"; setTuitionFilter: (v: number | "all") => void;
-  subjectFilter: string; setSubjectFilter: (v: string) => void;
+  subjectFilter: Set<string>; setSubjectFilter: (v: Set<string>) => void;
+  categoryFilter: Set<string>; setCategoryFilter: (v: Set<string>) => void;
   scoreMin: number; setScoreMin: (v: number) => void;
   scoreMax: number; setScoreMax: (v: number) => void;
+  maxScoreMin: number; setMaxScoreMin: (v: number) => void;
+  maxScoreMax: number; setMaxScoreMax: (v: number) => void;
+  userScore: number | ""; setUserScore: (v: number | "") => void;
+  onlyAboveUserScore: boolean; setOnlyAboveUserScore: (v: boolean) => void;
   talentFilter: string; setTalentFilter: (v: string) => void;
 }) {
   const { meta, tab } = props;
   if (!meta) return null;
   const range = tab === "benke" ? meta.benkeScoreRange : meta.zhuankeScoreRange;
+
+  // 多选切换辅助
+  const toggleInSet = (set: Set<string>, key: string): Set<string> => {
+    const next = new Set(set);
+    if (next.has(key)) next.delete(key);
+    else next.add(key);
+    return next;
+  };
 
   return (
     <div className="mb-6 rounded-xl border border-white/5 bg-white/[0.02] p-4 backdrop-blur-sm">
@@ -624,25 +815,124 @@ function FilterPanel(props: {
           </div>
         </div>
 
-        {/* 再选科目 */}
+        {/* 当年高考分数参考（用户输入） */}
         <div>
           <label className="mb-1.5 flex items-center gap-1.5 text-xs text-white/60">
-            <ClipboardList className="h-3.5 w-3.5" /> 报名条件（再选科目）
+            <Target className="h-3.5 w-3.5" /> 当年高考分数参考
           </label>
-          <select
-            value={props.subjectFilter}
-            onChange={(e) => props.setSubjectFilter(e.target.value)}
-            className="w-full rounded-lg border border-white/10 bg-midnight-800/50 px-3 py-1.5 text-sm text-white focus:border-starlight/40 focus:outline-none"
-          >
-            <option value="all">全部</option>
-            {meta.subjects.map(s => (
-              <option key={s} value={s}>{s}</option>
-            ))}
-          </select>
+          <div className="flex items-center gap-2">
+            <input
+              type="number"
+              value={props.userScore}
+              onChange={(e) => props.setUserScore(e.target.value === "" ? "" : Number(e.target.value))}
+              placeholder="输入你的分数"
+              min={0}
+              max={750}
+              className="w-full rounded-lg border border-white/10 bg-midnight-800/50 px-3 py-1.5 text-sm text-white placeholder-white/30 focus:border-starlight/40 focus:outline-none"
+            />
+            {props.userScore !== "" && (
+              <label className="flex shrink-0 cursor-pointer items-center gap-1 text-xs text-white/60">
+                <input
+                  type="checkbox"
+                  checked={props.onlyAboveUserScore}
+                  onChange={(e) => props.setOnlyAboveUserScore(e.target.checked)}
+                  className="accent-starlight"
+                />
+                仅显示可达
+              </label>
+            )}
+          </div>
+          {props.userScore !== "" && (
+            <p className="mt-1 text-[10px] text-white/40">
+              {props.onlyAboveUserScore
+                ? `仅显示录取最低分 ≤ ${props.userScore} 的专业（你可达）`
+                : `勾选「仅显示可达」筛选你分数能上的专业`}
+            </p>
+          )}
+        </div>
+
+        {/* 再选科目（多选） */}
+        <div className="md:col-span-2 lg:col-span-3">
+          <label className="mb-1.5 flex items-center gap-1.5 text-xs text-white/60">
+            <ClipboardList className="h-3.5 w-3.5" />
+            报名条件 · 再选科目要求（多选，任一匹配）
+            {props.subjectFilter.size > 0 && (
+              <button
+                onClick={() => props.setSubjectFilter(new Set())}
+                className="ml-2 text-white/40 hover:text-red-400"
+              >
+                清除
+              </button>
+            )}
+          </label>
+          <div className="flex flex-wrap gap-1.5">
+            {SUBJECT_OPTIONS.map(s => {
+              const active = props.subjectFilter.has(s.key);
+              return (
+                <button
+                  key={s.key}
+                  onClick={() => props.setSubjectFilter(toggleInSet(props.subjectFilter, s.key))}
+                  className={`flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs transition ${
+                    active
+                      ? "border-transparent text-white"
+                      : "border-white/10 text-white/50 hover:border-white/30"
+                  }`}
+                  style={active ? { background: s.color, color: "#070a1f" } : {}}
+                >
+                  <span
+                    className="h-1.5 w-1.5 rounded-full"
+                    style={{ background: active ? "#070a1f" : s.color }}
+                  />
+                  {s.label}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* 特殊类别（多选，源自 2026 招生考试之友分类） */}
+        <div className="md:col-span-2 lg:col-span-3">
+          <label className="mb-1.5 flex items-center gap-1.5 text-xs text-white/60">
+            <Filter className="h-3.5 w-3.5" />
+            特殊类别筛选（多选，源自 2026 河南招生考试之友）
+            {props.categoryFilter.size > 0 && (
+              <button
+                onClick={() => props.setCategoryFilter(new Set())}
+                className="ml-2 text-white/40 hover:text-red-400"
+              >
+                清除
+              </button>
+            )}
+          </label>
+          <div className="flex flex-wrap gap-1.5">
+            {CATEGORY_DEFS.map(c => {
+              const active = props.categoryFilter.has(c.key);
+              return (
+                <button
+                  key={c.key}
+                  onClick={() => props.setCategoryFilter(toggleInSet(props.categoryFilter, c.key))}
+                  className={`rounded-md border px-2.5 py-1 text-xs transition ${
+                    active
+                      ? "border-transparent text-white"
+                      : "border-white/10 text-white/50 hover:border-white/30"
+                  }`}
+                  style={active ? { background: c.color, color: "#070a1f" } : {}}
+                  title={c.desc}
+                >
+                  {c.label}
+                </button>
+              );
+            })}
+          </div>
+          {props.categoryFilter.size > 0 && (
+            <p className="mt-1.5 text-[10px] text-white/30">
+              {Array.from(props.categoryFilter).map(k => CATEGORY_DEFS.find(c => c.key === k)?.desc).filter(Boolean).join(" · ")}
+            </p>
+          )}
         </div>
 
         {/* 学费档级 */}
-        <div>
+        <div className="md:col-span-2 lg:col-span-3">
           <label className="mb-1.5 flex items-center gap-1.5 text-xs text-white/60">
             <Coins className="h-3.5 w-3.5" /> 专业价格（学费档级）
           </label>
@@ -675,11 +965,14 @@ function FilterPanel(props: {
           </div>
         </div>
 
-        {/* 录取分数范围 */}
-        <div className="md:col-span-2">
+        {/* 录取最低分范围（双向） */}
+        <div className="md:col-span-2 lg:col-span-3">
           <label className="mb-1.5 flex items-center gap-1.5 text-xs text-white/60">
             <TrendingUp className="h-3.5 w-3.5" />
-            录取最低分范围：<span className="text-starlight">{props.scoreMin}</span> ~ <span className="text-starlight">{props.scoreMax}</span>
+            录取最低分范围（双向筛选）：
+            <span className="text-starlight">{props.scoreMin}</span>
+            <span className="text-white/30">~</span>
+            <span className="text-starlight">{props.scoreMax}</span>
             <span className="text-white/30">（{range.min} - {range.max}）</span>
           </label>
           <div className="flex items-center gap-3">
@@ -701,6 +994,40 @@ function FilterPanel(props: {
                 value={props.scoreMax}
                 onChange={(e) => props.setScoreMax(Math.max(Number(e.target.value), props.scoreMin))}
                 style={{ ["--progress" as any]: `${((props.scoreMax - range.min) / (range.max - range.min)) * 100}%` }}
+              />
+            </div>
+          </div>
+        </div>
+
+        {/* 录取最高分范围（双向，与最低分独立） */}
+        <div className="md:col-span-2 lg:col-span-3">
+          <label className="mb-1.5 flex items-center gap-1.5 text-xs text-white/60">
+            <TrendingUp className="h-3.5 w-3.5 rotate-180" />
+            录取最高分范围（双向筛选，与最低分独立）：
+            <span className="text-orange-300">{props.maxScoreMin}</span>
+            <span className="text-white/30">~</span>
+            <span className="text-orange-300">{props.maxScoreMax}</span>
+            <span className="text-white/30">（{range.min} - {range.max}）</span>
+          </label>
+          <div className="flex items-center gap-3">
+            <div className="flex-1">
+              <input
+                type="range"
+                min={range.min}
+                max={range.max}
+                value={props.maxScoreMin}
+                onChange={(e) => props.setMaxScoreMin(Math.min(Number(e.target.value), props.maxScoreMax))}
+                style={{ ["--progress" as any]: `${((props.maxScoreMin - range.min) / (range.max - range.min)) * 100}%` }}
+              />
+            </div>
+            <div className="flex-1">
+              <input
+                type="range"
+                min={range.min}
+                max={range.max}
+                value={props.maxScoreMax}
+                onChange={(e) => props.setMaxScoreMax(Math.max(Number(e.target.value), props.maxScoreMin))}
+                style={{ ["--progress" as any]: `${((props.maxScoreMax - range.min) / (range.max - range.min)) * 100}%` }}
               />
             </div>
           </div>
