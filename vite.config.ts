@@ -10,6 +10,26 @@ export default defineConfig({
   build: {
     sourcemap: 'hidden',
   },
+  server: {
+    fs: {
+      // 限制 vite 只扫描项目内文件，避免扫描 tools/ 等大型本地目录导致 EMFILE
+      allow: [
+        // 项目根
+        './',
+      ],
+      deny: [
+        './tools/',
+        './android/.gradle/',
+        './android/build/',
+        './android/app/build/',
+        './node_modules/.cache/',
+      ],
+    },
+  },
+  optimizeDeps: {
+    // 仅扫描 src 目录，避免 vite 扫描 tools/ 等大型本地目录导致 EMFILE
+    entries: ['src/**/*.{js,ts,jsx,tsx}', 'index.html'],
+  },
   plugins: [
     react({
       babel: {
@@ -26,7 +46,7 @@ export default defineConfig({
       clickUrl: 'https://www.trae.ai/solo?showJoin=1',
       autoTheme: true,
       autoThemeTarget: '#root'
-    }), 
+    }),
     tsconfigPaths()
   ],
 })

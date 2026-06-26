@@ -1,4 +1,4 @@
-import { Sparkles, ChevronDown } from "lucide-react";
+import { Sparkles, ChevronDown, GraduationCap } from "lucide-react";
 
 interface HeroProps {
   onScrollToAssessment: () => void;
@@ -56,6 +56,16 @@ export default function Hero({ onScrollToAssessment }: HeroProps) {
         <span className="text-xs tracking-widest">开始探索</span>
         <ChevronDown className="h-5 w-5 animate-bounce transition-transform group-hover:translate-y-1" />
       </button>
+
+      {/* 高考志愿导览入口 */}
+      <a
+        href="#/gaokao"
+        className="mt-6 inline-flex items-center gap-2 rounded-full border border-starlight/30 bg-starlight/[0.06] px-5 py-2 text-sm text-starlight/90 transition hover:bg-starlight/15 hover:text-starlight"
+      >
+        <GraduationCap className="h-4 w-4" />
+        高考志愿导览 · 专业筛选推荐
+        <ChevronDown className="h-3 w-3 -rotate-90" />
+      </a>
     </header>
   );
 }
