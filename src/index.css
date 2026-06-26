@@ -81,9 +81,9 @@ html[data-gk-theme="blue"] body {
 [data-gk-theme="morandi"] {
   --c-title: #3A3733;
   --c-body: #5A5550;
-  --c-secondary: #8C8780;
-  --c-secondary-70: rgba(140, 135, 128, 0.85);
-  --c-secondary-50: rgba(140, 135, 128, 0.6);
+  --c-secondary: #6B6660;
+  --c-secondary-70: rgba(107, 102, 96, 0.9);
+  --c-secondary-50: rgba(107, 102, 96, 0.75);
   --c-primary: #8FAABE;
   --c-bg: #F5F2ED;
   --c-card: #FBFAF8;
@@ -253,6 +253,7 @@ input[type="range"]::-webkit-slider-thumb {
 }
 
 textarea { font-family: inherit; }
+[data-gk-theme] textarea::placeholder { color: var(--c-secondary-50); font-style: italic; opacity: 1; }
 textarea::placeholder { color: rgba(232, 234, 246, 0.3); font-style: italic; }
 
 ::-webkit-scrollbar { width: 8px; height: 8px; }

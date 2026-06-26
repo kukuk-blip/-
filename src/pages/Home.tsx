@@ -17,7 +17,11 @@ export default function Home() {
   };
 
   return (
-    <div ref={containerRef} className="relative min-h-screen">
+    <div
+      ref={containerRef}
+      className="relative min-h-screen"
+      style={{ backgroundColor: "#070a1f", color: "#e8eaf6" }}
+    >
       <StarfieldBackground />
 
       <Hero onScrollToAssessment={scrollToAssessment} />
