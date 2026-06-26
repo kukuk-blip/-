@@ -1,14 +1,32 @@
-@import url("https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;0,700;1,400&family=Noto+Serif+SC:wght@400;500;600;700&family=Noto+Sans+SC:wght@300;400;500;600;700&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@400;500;600;700&family=Noto+Sans+SC:wght@300;400;500;600;700&display=swap");
 
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
+/* ============ 莫兰迪色系 CSS 变量 ============ */
 :root {
-  font-family: "Noto Sans SC", system-ui, sans-serif;
-  line-height: 1.6;
+  /* 色彩规范 */
+  --morandi-primary: #8FAABE;       /* 雾霾蓝 - 主色 */
+  --morandi-pink: #D4B5B0;          /* 灰粉 - 辅助色1 */
+  --morandi-oat: #E0D6C8;          /* 燕麦色 - 辅助色2 */
+  --morandi-success: #A8B5A0;      /* 豆绿 - 成功色 */
+  --morandi-warning: #C9A688;      /* 暖橙 - 警告色 */
+  --morandi-error: #B58383;        /* 砖红 - 错误色 */
+  --morandi-bg: #F5F2ED;           /* 页面背景 - 暖调米白 */
+  --morandi-card: #FBFAF8;         /* 卡片背景 */
+  --morandi-border: #E5E1DB;       /* 分割线/边框 */
+  --morandi-text-secondary: #8C8780; /* 次要文字 */
+  --morandi-text-body: #5A5550;    /* 正文文字 */
+  --morandi-text-title: #3A3733;   /* 标题文字 */
+
+  /* 方正宋体字体栈 */
+  --font-song: "FZSongS-R-GB", "方正书宋简体", "FZShuSong-Z01", "Noto Serif SC", "SimSun", "宋体", serif;
+
+  font-family: var(--font-song);
+  line-height: 1.75;
   font-weight: 400;
-  color: #e8eaf6;
+  color: var(--morandi-text-body);
 
   font-synthesis: none;
   text-rendering: optimizeLegibility;
@@ -22,16 +40,42 @@ html {
 
 body {
   margin: 0;
-  background-color: #070a1f;
-  background-image:
-    radial-gradient(ellipse 80% 50% at 50% -10%, rgba(245, 185, 66, 0.08), transparent),
-    radial-gradient(ellipse 60% 40% at 80% 20%, rgba(79, 195, 247, 0.06), transparent),
-    radial-gradient(ellipse 50% 40% at 20% 60%, rgba(255, 126, 159, 0.05), transparent);
-  background-attachment: fixed;
+  background-color: var(--morandi-bg);
   min-height: 100vh;
 }
 
-/* 自定义滑块样式 */
+/* ============ 响应式字号层级 ============ */
+/* 桌面端（≥1200px）：H1 32-36px, H2 24-28px, H3 18-20px, 正文 16px, 辅助 14px */
+/* 移动端（<768px）：H1 24-28px, H2 20-22px, H3 17-18px, 正文 15px, 辅助 13px */
+
+h1 {
+  font-size: clamp(24px, 4vw, 34px);
+  font-weight: 600;
+  line-height: 1.35;
+  letter-spacing: 0.5px;
+  color: var(--morandi-text-title);
+}
+
+h2 {
+  font-size: clamp(20px, 3vw, 26px);
+  font-weight: 500;
+  line-height: 1.35;
+  letter-spacing: 0.5px;
+  color: var(--morandi-text-title);
+}
+
+h3 {
+  font-size: clamp(17px, 2vw, 19px);
+  font-weight: 500;
+  line-height: 1.4;
+  color: var(--morandi-text-title);
+}
+
+p {
+  line-height: 1.75;
+}
+
+/* ============ 自定义滑块样式（莫兰迪色系） ============ */
 input[type="range"] {
   -webkit-appearance: none;
   appearance: none;
@@ -45,23 +89,23 @@ input[type="range"]::-webkit-slider-runnable-track {
   border-radius: 2px;
   background: linear-gradient(
     to right,
-    rgba(245, 185, 66, 0.8) 0%,
-    rgba(245, 185, 66, 0.8) var(--progress, 50%),
-    rgba(255, 255, 255, 0.1) var(--progress, 50%),
-    rgba(255, 255, 255, 0.1) 100%
+    var(--morandi-primary) 0%,
+    var(--morandi-primary) var(--progress, 50%),
+    var(--morandi-border) var(--progress, 50%),
+    var(--morandi-border) 100%
   );
 }
 
 input[type="range"]::-moz-range-track {
   height: 4px;
   border-radius: 2px;
-  background: rgba(255, 255, 255, 0.1);
+  background: var(--morandi-border);
 }
 
 input[type="range"]::-moz-range-progress {
   height: 4px;
   border-radius: 2px;
-  background: rgba(245, 185, 66, 0.8);
+  background: var(--morandi-primary);
 }
 
 input[type="range"]::-webkit-slider-thumb {
@@ -70,63 +114,63 @@ input[type="range"]::-webkit-slider-thumb {
   width: 16px;
   height: 16px;
   border-radius: 50%;
-  background: #f5b942;
+  background: var(--morandi-primary);
   margin-top: -6px;
-  box-shadow: 0 0 12px rgba(245, 185, 66, 0.6), 0 0 0 2px rgba(7, 10, 31, 0.8);
+  box-shadow: 0 0 0 2px var(--morandi-card), 0 2px 8px rgba(143, 170, 190, 0.3);
   transition: transform 0.15s ease, box-shadow 0.15s ease;
 }
 
 input[type="range"]::-webkit-slider-thumb:hover {
-  transform: scale(1.25);
-  box-shadow: 0 0 18px rgba(245, 185, 66, 0.9), 0 0 0 2px rgba(7, 10, 31, 0.8);
+  transform: scale(1.2);
+  box-shadow: 0 0 0 2px var(--morandi-card), 0 2px 12px rgba(143, 170, 190, 0.5);
 }
 
 input[type="range"]::-moz-range-thumb {
   width: 16px;
   height: 16px;
   border-radius: 50%;
-  background: #f5b942;
-  border: none;
-  box-shadow: 0 0 12px rgba(245, 185, 66, 0.6);
+  background: var(--morandi-primary);
+  border: 2px solid var(--morandi-card);
+  box-shadow: 0 2px 8px rgba(143, 170, 190, 0.3);
   cursor: pointer;
 }
 
-/* 文本域样式 */
+/* ============ 输入框/表单样式 ============ */
 textarea {
   font-family: inherit;
 }
 
 textarea::placeholder {
-  color: rgba(232, 234, 246, 0.3);
-  font-style: italic;
+  color: var(--morandi-text-secondary);
+  opacity: 0.6;
 }
 
-/* 滚动条 */
+/* ============ 滚动条（莫兰迪色系） ============ */
 ::-webkit-scrollbar {
   width: 8px;
   height: 8px;
 }
 
 ::-webkit-scrollbar-track {
-  background: #0a0e27;
+  background: var(--morandi-bg);
 }
 
 ::-webkit-scrollbar-thumb {
-  background: rgba(245, 185, 66, 0.3);
+  background: rgba(143, 170, 190, 0.3);
   border-radius: 4px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(245, 185, 66, 0.5);
+  background: rgba(143, 170, 190, 0.5);
 }
 
 /* 选中文本 */
 ::selection {
-  background: rgba(245, 185, 66, 0.3);
-  color: #fff;
+  background: rgba(143, 170, 190, 0.3);
+  color: var(--morandi-text-title);
 }
 
-/* 渐入观察器类 */
+/* ============ 渐入观察器类 ============ */
 .reveal {
   opacity: 0;
   transform: translateY(28px);
@@ -136,4 +180,52 @@ textarea::placeholder {
 .reveal.is-visible {
   opacity: 1;
   transform: translateY(0);
+}
+
+/* ============ 莫兰迪卡片工具类 ============ */
+.morandi-card {
+  background: var(--morandi-card);
+  border: 1px solid var(--morandi-border);
+  border-radius: 10px;
+  box-shadow: 0 2px 12px rgba(90, 85, 80, 0.06);
+  transition: box-shadow 0.3s ease;
+}
+
+.morandi-card:hover {
+  box-shadow: 0 4px 20px rgba(90, 85, 80, 0.1);
+}
+
+.morandi-btn-primary {
+  background: var(--morandi-primary);
+  color: #fff;
+  border-radius: 6px;
+  font-weight: 500;
+  transition: opacity 0.2s ease, transform 0.15s ease;
+}
+
+.morandi-btn-primary:hover {
+  opacity: 0.9;
+}
+
+.morandi-btn-secondary {
+  background: transparent;
+  color: var(--morandi-primary);
+  border: 1px solid var(--morandi-primary);
+  border-radius: 6px;
+  transition: background 0.2s ease;
+}
+
+.morandi-btn-secondary:hover {
+  background: rgba(143, 170, 190, 0.08);
+}
+
+/* 移动端触控目标尺寸 */
+@media (max-width: 767px) {
+  button {
+    min-height: 36px;
+  }
+  input[type="checkbox"] {
+    width: 18px;
+    height: 18px;
+  }
 }
