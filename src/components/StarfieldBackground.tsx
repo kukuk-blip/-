@@ -1,304 +1,475 @@
-import { useEffect, useMemo, useRef, useState } from "react";
-
-interface Star {
-  cx: number;
-  cy: number;
-  r: number;
-  delay: number;
-  duration: number;
-  opacity: number;
-}
-
-interface ConstellationStar {
-  x: number;  // 相对坐标 0-100
-  y: number;
-  size: number;
-}
-
-interface Constellation {
-  name: string;
-  stars: ConstellationStar[];
-  links: [number, number][];  // 星点索引对，形成连线
-  cx: number;  // 星座中心 x（用于距离判定）
-  cy: number;
-}
-
-// ============ 预设星座 ============
-// 坐标系：0-100 相对屏幕宽高
-const CONSTELLATIONS: Constellation[] = [
-  {
-    // 大熊座（北斗七星，勺子形）
-    name: "大熊座",
-    cx: 22,
-    cy: 25,
-    stars: [
-      { x: 8,  y: 22, size: 1.6 },
-      { x: 14, y: 20, size: 1.4 },
-      { x: 20, y: 22, size: 1.5 },
-      { x: 26, y: 24, size: 1.3 },
-      { x: 28, y: 30, size: 1.4 },
-      { x: 22, y: 34, size: 1.3 },
-      { x: 16, y: 32, size: 1.2 },
-    ],
-    links: [[0,1],[1,2],[2,3],[3,4],[4,5],[5,6],[6,3]],
-  },
-  {
-    // 猎户座（沙漏形 + 腰带三星）
-    name: "猎户座",
-    cx: 72,
-    cy: 30,
-    stars: [
-      { x: 66, y: 22, size: 1.6 },  // 左肩
-      { x: 78, y: 20, size: 1.5 },  // 右肩
-      { x: 70, y: 30, size: 1.3 },  // 腰带1
-      { x: 72, y: 31, size: 1.3 },  // 腰带2
-      { x: 74, y: 32, size: 1.3 },  // 腰带3
-      { x: 64, y: 42, size: 1.5 },  // 左脚
-      { x: 80, y: 40, size: 1.4 },  // 右脚
-    ],
-    links: [[0,2],[1,4],[2,3],[3,4],[2,5],[4,6],[0,1]],
-  },
-  {
-    // 仙后座（W 形）
-    name: "仙后座",
-    cx: 50,
-    cy: 70,
-    stars: [
-      { x: 38, y: 65, size: 1.4 },
-      { x: 44, y: 72, size: 1.5 },
-      { x: 50, y: 66, size: 1.3 },
-      { x: 56, y: 72, size: 1.5 },
-      { x: 62, y: 65, size: 1.4 },
-    ],
-    links: [[0,1],[1,2],[2,3],[3,4]],
-  },
-];
+import { useEffect, useRef } from "react";
 
 /**
- * 星空背景 - 星座版
- * - 底层：静止闪烁的星点（背景星空）
- * - 中层：3 个预设星座（北斗/猎户/仙后），星点之间有连线
- * - 交互：鼠标移动时整个星座层产生视差移动；鼠标靠近某星座时该星座高亮
- * - 移动端：无鼠标，降级为静态星座 + 自动缓慢视差
+ * 银白星空动态背景
+ * - Canvas 渲染：银白色闪烁星星 + 偶尔划过的流星
+ * - 大星点带十字星芒，流星带渐变尾迹
+ * - 移动端自动减少星星数量，性能更优
+ * - 组件卸载时自动清理动画与事件
  */
 export default function StarfieldBackground() {
-  const containerRef = useRef<HTMLDivElement>(null);
-  const [parallax, setParallax] = useState({ x: 0, y: 0 });
-  const [activeIdx, setActiveIdx] = useState<number>(-1);
-  const rafRef = useRef<number>(0);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
 
-  const isMobile =
-    typeof window !== "undefined" && window.innerWidth < 768;
-
-  // 背景闪烁星点
-  const stars = useMemo<Star[]>(() => {
-    const list: Star[] = [];
-    let seed = 7;
-    const rand = () => {
-      seed = (seed * 9301 + 49297) % 233280;
-      return seed / 233280;
-    };
-    const count = isMobile ? 30 : 55;
-    for (let i = 0; i < count; i++) {
-      list.push({
-        cx: rand() * 100,
-        cy: rand() * 100,
-        r: rand() * 1.1 + 0.3,
-        delay: rand() * 6,
-        duration: rand() * 4 + 3,
-        opacity: rand() * 0.5 + 0.2,
-      });
-    }
-    return list;
-  }, [isMobile]);
-
-  // 鼠标视差 + 高亮判定
   useEffect(() => {
-    if (isMobile) {
-      // 移动端：自动缓慢视差（正弦摆动）
-      let t = 0;
-      const id = setInterval(() => {
-        t += 0.02;
-        setParallax({
-          x: Math.sin(t) * 8,
-          y: Math.cos(t * 0.7) * 6,
-        });
-      }, 80);
-      return () => clearInterval(id);
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+
+    let width = 0;
+    let height = 0;
+    let stars: Star[] = [];
+    let meteors: Meteor[] = [];
+    let animationId = 0;
+    let lastTime = performance.now();
+    let resizeTimeout: number | undefined;
+    let meteorTimer: number | undefined;
+    const isMobile = window.innerWidth < 768;
+
+    // ==================== 星星 ====================
+    class Star {
+      x = 0;
+      y = 0;
+      radius = 0.3;
+      baseAlpha = 0.35;
+      twinklePhase = 0;
+      twinkleSpeed = 0.3;
+      twinkleAmplitude = 0.2;
+
+      constructor() {
+        this.reset();
+        this.twinklePhase = Math.random() * Math.PI * 2;
+        this.twinkleSpeed = 0.3 + Math.random() * 1.8;
+        this.twinkleAmplitude = 0.2 + Math.random() * 0.55;
+      }
+
+      reset() {
+        this.x = Math.random() * width;
+        this.y = Math.random() * height;
+        this.radius = 0.3 + Math.random() * 2.2;
+        this.baseAlpha = 0.35 + Math.random() * 0.65;
+        this.twinklePhase = Math.random() * Math.PI * 2;
+        this.twinkleSpeed = 0.3 + Math.random() * 1.8;
+        this.twinkleAmplitude = 0.2 + Math.random() * 0.55;
+      }
+
+      update(deltaTime: number) {
+        this.twinklePhase += this.twinkleSpeed * deltaTime;
+      }
+
+      getAlpha() {
+        const twinkle = Math.sin(this.twinklePhase) * this.twinkleAmplitude;
+        return Math.max(0.08, Math.min(1, this.baseAlpha + twinkle));
+      }
+
+      draw(ctx: CanvasRenderingContext2D) {
+        const alpha = this.getAlpha();
+        const r = this.radius;
+
+        // 柔和光晕
+        const glowGrad = ctx.createRadialGradient(this.x, this.y, 0, this.x, this.y, r * 3.5);
+        glowGrad.addColorStop(0, `rgba(240,245,255,${alpha})`);
+        glowGrad.addColorStop(0.15, `rgba(220,230,250,${alpha * 0.85})`);
+        glowGrad.addColorStop(0.4, `rgba(190,205,235,${alpha * 0.4})`);
+        glowGrad.addColorStop(0.7, `rgba(150,170,210,${alpha * 0.08})`);
+        glowGrad.addColorStop(1, "rgba(100,120,160,0)");
+
+        ctx.beginPath();
+        ctx.arc(this.x, this.y, r * 3.5, 0, Math.PI * 2);
+        ctx.fillStyle = glowGrad;
+        ctx.fill();
+
+        // 核心亮点
+        const coreGrad = ctx.createRadialGradient(this.x, this.y, 0, this.x, this.y, r * 1.2);
+        coreGrad.addColorStop(0, `rgba(255,255,255,${alpha})`);
+        coreGrad.addColorStop(0.35, `rgba(240,245,255,${alpha * 0.9})`);
+        coreGrad.addColorStop(0.7, `rgba(210,220,240,${alpha * 0.5})`);
+        coreGrad.addColorStop(1, "rgba(170,185,210,0)");
+
+        ctx.beginPath();
+        ctx.arc(this.x, this.y, r * 1.2, 0, Math.PI * 2);
+        ctx.fillStyle = coreGrad;
+        ctx.fill();
+
+        // 十字星芒（仅较大星星）
+        if (r > 1.1 && alpha > 0.4) {
+          const spikeAlpha = alpha * 0.5;
+          const spikeLen = r * 5;
+          const spikeWidth = r * 0.35;
+
+          ctx.save();
+          ctx.globalAlpha = spikeAlpha;
+          ctx.strokeStyle = "#e8eef8";
+          ctx.lineWidth = spikeWidth;
+          ctx.lineCap = "round";
+
+          ctx.beginPath();
+          ctx.moveTo(this.x - spikeLen, this.y);
+          ctx.lineTo(this.x + spikeLen, this.y);
+          ctx.stroke();
+
+          ctx.beginPath();
+          ctx.moveTo(this.x, this.y - spikeLen);
+          ctx.lineTo(this.x, this.y + spikeLen);
+          ctx.stroke();
+
+          const diagLen = spikeLen * 0.5;
+          const diagWidth = spikeWidth * 0.5;
+          ctx.lineWidth = diagWidth;
+          ctx.globalAlpha = spikeAlpha * 0.45;
+
+          ctx.beginPath();
+          ctx.moveTo(this.x - diagLen, this.y - diagLen);
+          ctx.lineTo(this.x + diagLen, this.y + diagLen);
+          ctx.stroke();
+
+          ctx.beginPath();
+          ctx.moveTo(this.x + diagLen, this.y - diagLen);
+          ctx.lineTo(this.x - diagLen, this.y + diagLen);
+          ctx.stroke();
+
+          ctx.restore();
+        }
+      }
     }
 
-    const onMove = (e: MouseEvent) => {
-      if (rafRef.current) cancelAnimationFrame(rafRef.current);
-      rafRef.current = requestAnimationFrame(() => {
-        const w = window.innerWidth;
-        const h = window.innerHeight;
-        // 鼠标相对屏幕中心的位置，归一化到 -1 ~ 1
-        const nx = (e.clientX / w) * 2 - 1;
-        const ny = (e.clientY / h) * 2 - 1;
-        // 视差移动幅度：±18px
-        setParallax({ x: nx * 18, y: ny * 14 });
+    // ==================== 流星 ====================
+    class Meteor {
+      x = 0;
+      y = 0;
+      angle = Math.PI / 2;
+      speed = 350;
+      length = 60;
+      headRadius = 1.2;
+      tailWidth = 0.4;
+      alpha = 0.75;
+      maxAlpha = 0.75;
+      fadingOut = false;
+      fadeSpeed = 0.6;
+      alive = true;
+      distanceTraveled = 0;
+      maxDistance = 0;
+      trailPoints: { x: number; y: number; alpha: number }[] = [];
+      trailMaxPoints = 40;
 
-        // 判定鼠标最靠近哪个星座（用星座中心点坐标换算到屏幕像素）
-        let nearest = -1;
-        let minDist = Infinity;
-        CONSTELLATIONS.forEach((c, i) => {
-          const px = (c.cx / 100) * w;
-          const py = (c.cy / 100) * h;
-          const d = Math.hypot(px - e.clientX, py - e.clientY);
-          if (d < minDist) {
-            minDist = d;
-            nearest = i;
+      constructor() {
+        this.reset();
+      }
+
+      reset() {
+        const side = Math.random();
+        if (side < 0.6) {
+          this.x = Math.random() * width;
+          this.y = -20 - Math.random() * 120;
+        } else if (side < 0.85) {
+          this.x = -20 - Math.random() * 100;
+          this.y = Math.random() * height * 0.5;
+        } else {
+          this.x = width + 20 + Math.random() * 100;
+          this.y = Math.random() * height * 0.5;
+        }
+
+        this.angle = Math.PI / 2 + (Math.random() - 0.5) * 0.9;
+        if (this.angle < Math.PI * 0.35) this.angle = Math.PI * 0.35;
+        if (this.angle > Math.PI * 0.65) this.angle = Math.PI * 0.65;
+
+        this.speed = 350 + Math.random() * 650;
+        this.length = 60 + Math.random() * 160;
+        this.headRadius = 1.2 + Math.random() * 2.5;
+        this.tailWidth = 0.4 + Math.random() * 1.2;
+        this.alpha = 0.75 + Math.random() * 0.25;
+        this.maxAlpha = this.alpha;
+        this.fadingOut = false;
+        this.fadeSpeed = 0.6 + Math.random() * 1.5;
+        this.alive = true;
+        this.distanceTraveled = 0;
+        this.maxDistance = height * 0.7 + Math.random() * height * 0.8;
+        this.trailPoints = [];
+      }
+
+      update(deltaTime: number) {
+        const vx = Math.cos(this.angle) * this.speed * deltaTime;
+        const vy = Math.sin(this.angle) * this.speed * deltaTime;
+
+        this.x += vx;
+        this.y += vy;
+        this.distanceTraveled += Math.abs(vy) + Math.abs(vx) * 0.5;
+
+        this.trailPoints.unshift({ x: this.x, y: this.y, alpha: this.alpha });
+        if (this.trailPoints.length > this.trailMaxPoints) {
+          this.trailPoints.length = this.trailMaxPoints;
+        }
+        for (let i = 0; i < this.trailPoints.length; i++) {
+          this.trailPoints[i].alpha *= 0.88;
+        }
+
+        if (this.distanceTraveled > this.maxDistance * 0.75 && !this.fadingOut) {
+          this.fadingOut = true;
+        }
+        if (this.fadingOut) {
+          this.alpha -= this.fadeSpeed * deltaTime;
+          if (this.alpha <= 0.02) this.alive = false;
+        }
+        if (this.y > height + 200 || this.x < -200 || this.x > width + 200) {
+          this.alive = false;
+        }
+        this.trailPoints = this.trailPoints.filter((p) => p.alpha > 0.005);
+      }
+
+      draw(ctx: CanvasRenderingContext2D) {
+        if (this.trailPoints.length < 2) {
+          const headGlow = ctx.createRadialGradient(
+            this.x, this.y, 0, this.x, this.y, this.headRadius * 4
+          );
+          headGlow.addColorStop(0, `rgba(255,255,255,${this.alpha})`);
+          headGlow.addColorStop(0.2, `rgba(240,245,255,${this.alpha * 0.8})`);
+          headGlow.addColorStop(0.5, `rgba(200,215,240,${this.alpha * 0.3})`);
+          headGlow.addColorStop(1, "rgba(150,170,200,0)");
+
+          ctx.beginPath();
+          ctx.arc(this.x, this.y, this.headRadius * 4, 0, Math.PI * 2);
+          ctx.fillStyle = headGlow;
+          ctx.fill();
+          return;
+        }
+
+        const points = this.trailPoints;
+        if (points.length >= 2) {
+          ctx.save();
+          ctx.lineCap = "round";
+          ctx.lineJoin = "round";
+
+          for (let i = 0; i < points.length - 1; i++) {
+            const p0 = points[i];
+            const p1 = points[i + 1];
+            const segAlpha = p1.alpha * this.alpha;
+            const segWidth = this.tailWidth * (0.3 + 0.7 * (i / points.length));
+            if (segAlpha < 0.003) continue;
+
+            ctx.strokeStyle = `rgba(220,230,250,${segAlpha})`;
+            ctx.lineWidth = segWidth;
+            ctx.beginPath();
+            ctx.moveTo(p0.x, p0.y);
+            ctx.lineTo(p1.x, p1.y);
+            ctx.stroke();
           }
-        });
-        // 距离阈值：屏幕对角线的 25% 以内才高亮
-        const threshold = Math.hypot(w, h) * 0.25;
-        setActiveIdx(minDist < threshold ? nearest : -1);
-      });
-    };
+          ctx.restore();
+        }
 
-    window.addEventListener("mousemove", onMove);
+        // 头部光晕
+        const headGlow = ctx.createRadialGradient(
+          this.x, this.y, 0, this.x, this.y, this.headRadius * 5
+        );
+        headGlow.addColorStop(0, `rgba(255,255,255,${this.alpha})`);
+        headGlow.addColorStop(0.1, `rgba(245,248,255,${this.alpha * 0.9})`);
+        headGlow.addColorStop(0.3, `rgba(210,225,248,${this.alpha * 0.5})`);
+        headGlow.addColorStop(0.6, `rgba(170,190,220,${this.alpha * 0.12})`);
+        headGlow.addColorStop(1, "rgba(120,140,180,0)");
+
+        ctx.beginPath();
+        ctx.arc(this.x, this.y, this.headRadius * 5, 0, Math.PI * 2);
+        ctx.fillStyle = headGlow;
+        ctx.fill();
+
+        // 头部核心白点
+        const coreGlow = ctx.createRadialGradient(
+          this.x, this.y, 0, this.x, this.y, this.headRadius * 1.5
+        );
+        coreGlow.addColorStop(0, `rgba(255,255,255,${this.alpha})`);
+        coreGlow.addColorStop(0.5, `rgba(255,255,255,${this.alpha * 0.7})`);
+        coreGlow.addColorStop(1, "rgba(220,230,250,0)");
+
+        ctx.beginPath();
+        ctx.arc(this.x, this.y, this.headRadius * 1.5, 0, Math.PI * 2);
+        ctx.fillStyle = coreGlow;
+        ctx.fill();
+      }
+    }
+
+    // ==================== 尺寸与初始化 ====================
+    function resizeCanvas() {
+      width = window.innerWidth;
+      height = window.innerHeight;
+      canvas!.width = width;
+      canvas!.height = height;
+
+      // 移动端减少密度，避免卡顿
+      const divisor = isMobile ? 4200 : 2800;
+      const targetStarCount = Math.floor((width * height) / divisor);
+      const clampedCount = Math.max(
+        isMobile ? 100 : 180,
+        Math.min(isMobile ? 320 : 600, targetStarCount)
+      );
+
+      while (stars.length < clampedCount) {
+        const star = new Star();
+        star.x = Math.random() * width;
+        star.y = Math.random() * height;
+        stars.push(star);
+      }
+      while (stars.length > clampedCount) {
+        stars.pop();
+      }
+      stars.forEach((star) => {
+        if (star.x > width || star.y > height) {
+          star.x = Math.random() * width;
+          star.y = Math.random() * height;
+        }
+      });
+    }
+
+    function initStars() {
+      stars = [];
+      const divisor = isMobile ? 4200 : 2800;
+      const targetStarCount = Math.floor((width * height) / divisor);
+      const clampedCount = Math.max(
+        isMobile ? 100 : 180,
+        Math.min(isMobile ? 320 : 600, targetStarCount)
+      );
+      for (let i = 0; i < clampedCount; i++) {
+        const star = new Star();
+        star.x = Math.random() * width;
+        star.y = Math.random() * height;
+        star.twinklePhase = Math.random() * Math.PI * 2;
+        stars.push(star);
+      }
+    }
+
+    // ==================== 流星生成 ====================
+    function spawnMeteor() {
+      meteors.push(new Meteor());
+    }
+
+    function scheduleNextMeteor() {
+      // 移动端间隔更长，节省性能
+      const baseDelay = isMobile ? 7000 : 4000;
+      const variance = isMobile ? 16000 : 14000;
+      const delay = baseDelay + Math.random() * variance;
+      meteorTimer = window.setTimeout(() => {
+        if (meteors.length < (isMobile ? 2 : 3)) {
+          spawnMeteor();
+        }
+        scheduleNextMeteor();
+      }, delay);
+    }
+
+    // ==================== 动画循环 ====================
+    function animate(currentTime: number) {
+      const rawDelta = (currentTime - lastTime) / 1000;
+      const deltaTime = Math.min(rawDelta, 0.1);
+      lastTime = currentTime;
+
+      ctx!.clearRect(0, 0, width, height);
+
+      // 微弱背景色调（径向渐变）
+      const bgGrad = ctx!.createRadialGradient(
+        width / 2, height / 2, 0,
+        width / 2, height / 2, Math.max(width, height) * 0.8
+      );
+      bgGrad.addColorStop(0, "rgba(12,12,28,0)");
+      bgGrad.addColorStop(0.5, "rgba(8,8,22,0.3)");
+      bgGrad.addColorStop(1, "rgba(4,4,16,0.7)");
+      ctx!.fillStyle = bgGrad;
+      ctx!.fillRect(0, 0, width, height);
+
+      // 星星
+      for (const star of stars) {
+        star.update(deltaTime);
+        star.draw(ctx!);
+      }
+
+      // 流星
+      for (let i = meteors.length - 1; i >= 0; i--) {
+        const meteor = meteors[i];
+        meteor.update(deltaTime);
+        if (!meteor.alive) {
+          meteors.splice(i, 1);
+        } else {
+          meteor.draw(ctx!);
+        }
+      }
+
+      animationId = requestAnimationFrame(animate);
+    }
+
+    // ==================== 启动 ====================
+    function init() {
+      resizeCanvas();
+      initStars();
+      meteors = [];
+
+      if (Math.random() < 0.7) spawnMeteor();
+      if (Math.random() < 0.4) {
+        window.setTimeout(spawnMeteor, 1500 + Math.random() * 3000);
+      }
+      scheduleNextMeteor();
+
+      lastTime = performance.now();
+      animationId = requestAnimationFrame(animate);
+    }
+
+    // 响应窗口大小变化
+    function onResize() {
+      window.clearTimeout(resizeTimeout);
+      resizeTimeout = window.setTimeout(() => {
+        resizeCanvas();
+      }, 300);
+    }
+
+    // 点击额外触发流星（小彩蛋）—— 流星从点击位置上方出现，朝向点击方向飞去
+    function onClick(e: MouseEvent) {
+      if (meteors.length >= (isMobile ? 2 : 4)) return;
+      const meteor = new Meteor();
+      const cx = e.clientX;
+      const cy = e.clientY;
+      meteor.x = cx + (Math.random() - 0.5) * 200;
+      meteor.y = cy - 150 - Math.random() * 200;
+      meteor.angle = Math.atan2(cy - meteor.y, cx - meteor.x);
+      // 限制角度，确保大致向下飞
+      if (meteor.angle < Math.PI * 0.3) meteor.angle = Math.PI * 0.3;
+      if (meteor.angle > Math.PI * 0.7) meteor.angle = Math.PI * 0.7;
+      meteor.speed = 500 + Math.random() * 600;
+      meteor.length = 80 + Math.random() * 140;
+      meteors.push(meteor);
+    }
+
+    window.addEventListener("resize", onResize);
+    canvas.addEventListener("click", onClick);
+
+    init();
+
+    // ==================== 清理 ====================
     return () => {
-      window.removeEventListener("mousemove", onMove);
-      if (rafRef.current) cancelAnimationFrame(rafRef.current);
+      cancelAnimationFrame(animationId);
+      window.clearTimeout(meteorTimer);
+      window.clearTimeout(resizeTimeout);
+      window.removeEventListener("resize", onResize);
+      canvas.removeEventListener("click", onClick);
     };
-  }, [isMobile]);
+  }, []);
 
   return (
-    <div
-      ref={containerRef}
-      className="pointer-events-none fixed inset-0 z-0 overflow-hidden"
-    >
-      {/* 底层：静止闪烁星点 */}
-      <svg
+    <div className="pointer-events-none fixed inset-0 z-0 overflow-hidden">
+      <canvas
+        ref={canvasRef}
         className="absolute inset-0 h-full w-full"
-        preserveAspectRatio="none"
-        viewBox="0 0 100 100"
-        aria-hidden="true"
-      >
-        <g style={{ willChange: "opacity" }}>
-          {stars.map((s, i) => (
-            <circle
-              key={i}
-              cx={s.cx}
-              cy={s.cy}
-              r={s.r}
-              fill="#ffffff"
-              className="animate-twinkle"
-              style={{
-                opacity: s.opacity,
-                animationDelay: `${s.delay}s`,
-                animationDuration: `${s.duration}s`,
-              }}
-            />
-          ))}
-        </g>
-      </svg>
-
-      {/* 中层：星座（随鼠标视差移动） */}
+        style={{ display: "block" }}
+      />
+      {/* 底部柔光氛围 */}
       <div
+        className="absolute inset-x-0 bottom-0 h-[30%]"
         style={{
-          transform: `translate(${parallax.x}px, ${parallax.y}px)`,
-          transition: "transform 0.4s cubic-bezier(0.16, 1, 0.3, 1)",
-          willChange: "transform",
+          background:
+            "radial-gradient(ellipse at center bottom, rgba(180,190,210,0.06) 0%, rgba(140,150,180,0.03) 30%, transparent 70%)",
         }}
-        className="absolute inset-0"
-      >
-        <svg
-          className="absolute inset-0 h-full w-full"
-          preserveAspectRatio="none"
-          viewBox="0 0 100 100"
-          aria-hidden="true"
-        >
-          {/* 银白星光晕染渐变 */}
-          <defs>
-            <radialGradient id="starGlow" cx="50%" cy="50%" r="50%">
-              <stop offset="0%" stopColor="#ffffff" stopOpacity="0.9" />
-              <stop offset="35%" stopColor="#dce8ff" stopOpacity="0.4" />
-              <stop offset="100%" stopColor="#a8c5ff" stopOpacity="0" />
-            </radialGradient>
-          </defs>
-          {CONSTELLATIONS.map((c, ci) => {
-            const isActive = activeIdx === ci;
-            const lineOpacity = isActive ? 0.75 : 0.22;
-            const lineColor = isActive ? "#a8d8ff" : "#c9d4e8";
-            const starColor = isActive ? "#ffffff" : "#e8edf5";
-            const glowOpacity = isActive ? 0.9 : 0.5;
-            return (
-              <g key={c.name}>
-                {/* 连线 */}
-                {c.links.map(([a, b], li) => (
-                  <line
-                    key={li}
-                    x1={c.stars[a].x}
-                    y1={c.stars[a].y}
-                    x2={c.stars[b].x}
-                    y2={c.stars[b].y}
-                    stroke={lineColor}
-                    strokeWidth={isActive ? 0.35 : 0.2}
-                    strokeLinecap="round"
-                    opacity={lineOpacity}
-                    style={{ transition: "opacity 0.5s ease, stroke 0.5s ease, stroke-width 0.5s ease" }}
-                  />
-                ))}
-                {/* 星点 */}
-                {c.stars.map((s, si) => (
-                  <g key={si}>
-                    {/* 光晕：银白带淡蓝 */}
-                    <circle
-                      cx={s.x}
-                      cy={s.y}
-                      r={s.size * 2.8}
-                      fill="url(#starGlow)"
-                      opacity={glowOpacity * 0.5}
-                      style={{
-                        transition: "opacity 0.5s ease",
-                      }}
-                    />
-                    {/* 核心 */}
-                    <circle
-                      cx={s.x}
-                      cy={s.y}
-                      r={s.size}
-                      fill={starColor}
-                      className="animate-twinkle"
-                      style={{
-                        opacity: glowOpacity,
-                        animationDelay: `${si * 0.4}s`,
-                        transition: "fill 0.5s ease, opacity 0.5s ease",
-                      }}
-                    />
-                  </g>
-                ))}
-                {/* 星座名（高亮时显示） */}
-                {isActive && (
-                  <text
-                    x={c.cx}
-                    y={c.cy + 8}
-                    textAnchor="middle"
-                    fontSize="1.6"
-                    fill="#a8d8ff"
-                    opacity="0.85"
-                    style={{
-                      fontFamily: '"Cormorant Garamond", "Noto Serif SC", serif',
-                      fontStyle: "italic",
-                      letterSpacing: "0.3px",
-                      transition: "opacity 0.5s ease",
-                    }}
-                  >
-                    {c.name}
-                  </text>
-                )}
-              </g>
-            );
-          })}
-        </svg>
-      </div>
-
-      {/* 远景星云光晕：仅桌面端启用 */}
-      <div className="absolute -left-1/4 top-1/4 hidden h-[60vh] w-[60vh] rounded-full bg-[radial-gradient(circle,rgba(79,195,247,0.07),transparent_70%)] blur-3xl animate-drift md:block" />
+      />
+      {/* 顶部微光 */}
       <div
-        className="absolute right-0 top-1/2 hidden h-[50vh] w-[50vh] rounded-full bg-[radial-gradient(circle,rgba(255,126,159,0.06),transparent_70%)] blur-3xl animate-drift md:block"
-        style={{ animationDelay: "8s" }}
+        className="absolute inset-x-0 top-0 h-[20%]"
+        style={{
+          background:
+            "radial-gradient(ellipse at center top, rgba(200,210,230,0.04) 0%, transparent 70%)",
+        }}
       />
     </div>
   );
