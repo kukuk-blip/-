@@ -905,7 +905,7 @@ export default function GaokaoPage() {
         </div>
 
         {/* 排序控制 */}
-        <div className="mb-3 flex items-center gap-2 overflow-x-auto pb-1">
+        <div className="mb-2 flex items-center gap-1.5 overflow-x-auto pb-1">
           <span className="text-xs text-[var(--c-secondary)] shrink-0">排序：</span>
           {([
             { key: "default", label: "默认" },
@@ -943,9 +943,9 @@ export default function GaokaoPage() {
 
         {/* 表格 */}
         {tab === "benke" ? (
-          <BenkeTable rows={pagedB} talentFilter={talentFilter} meta={meta} />
+          <BenkeTable rows={pagedB} talentFilter={talentFilter} meta={meta} page={pageB} />
         ) : (
-          <ZhuankeTable rows={pagedZ} talentFilter={talentFilter} meta={meta} />
+          <ZhuankeTable rows={pagedZ} talentFilter={talentFilter} meta={meta} page={pageZ} />
         )}
 
         {/* 分页 */}
@@ -1702,12 +1702,12 @@ function TuitionBadge({ tier, label }: { tier: number; label: string }) {
   );
 }
 
-function BenkeTable({ rows, talentFilter, meta }: { rows: BenkeRow[]; talentFilter: Set<string>; meta: Meta | null }) {
+function BenkeTable({ rows, talentFilter, meta, page }: { rows: BenkeRow[]; talentFilter: Set<string>; meta: Meta | null; page: number }) {
   return (
     <>
     <div className="hidden overflow-x-auto rounded-lg border border-[var(--c-border)] md:block">
       <table className="w-full min-w-[1400px] text-left text-xs">
-        <thead className="sticky top-[57px] z-10 backdrop-blur-sm" style={{ background: "color-mix(in srgb, var(--c-card-solid) 95%, transparent)" }}>
+        <thead className="sticky top-[49px] z-10" style={{ background: "var(--c-card-solid)" }}>
           <tr className="text-[var(--c-secondary)]">
             <Th>排名</Th>
             <Th>院校代号</Th>
@@ -1736,7 +1736,7 @@ function BenkeTable({ rows, talentFilter, meta }: { rows: BenkeRow[]; talentFilt
                   isHL ? "bg-[var(--c-primary-10)]" : ""
                 }`}
               >
-                <Td><span className="font-mono text-[var(--c-secondary-70)]">{r[0]}</span></Td>
+                <Td><span className="font-mono text-[var(--c-secondary-70)]">{(page - 1) * 50 + i + 1}</span></Td>
                 <Td><span className="font-mono">{r[1]}</span></Td>
                 <Td><span className="text-[var(--c-title)]">{r[2]}</span></Td>
                 <Td><span className="font-mono text-[var(--c-body)]">{r[3] || "-"}</span></Td>
@@ -1780,7 +1780,7 @@ function BenkeTable({ rows, talentFilter, meta }: { rows: BenkeRow[]; talentFilt
             <div className="flex items-start justify-between gap-2 border-b border-[var(--c-border-soft)] pb-2">
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2">
-                  <span className="font-mono text-[10px] text-[var(--c-secondary-50)]">#{r[0]}</span>
+                  <span className="font-mono text-[10px] text-[var(--c-secondary-50)]">#{(page - 1) * 50 + i + 1}</span>
                   <span className="truncate text-[var(--c-title)] font-medium">{r[2]}</span>
                 </div>
                 <div className="mt-0.5 flex items-center gap-2 text-[10px] text-[var(--c-secondary)]">
@@ -1844,12 +1844,12 @@ function BenkeTable({ rows, talentFilter, meta }: { rows: BenkeRow[]; talentFilt
   );
 }
 
-function ZhuankeTable({ rows, talentFilter, meta }: { rows: ZhuankeRow[]; talentFilter: Set<string>; meta: Meta | null }) {
+function ZhuankeTable({ rows, talentFilter, meta, page }: { rows: ZhuankeRow[]; talentFilter: Set<string>; meta: Meta | null; page: number }) {
   return (
     <>
     <div className="hidden overflow-x-auto rounded-lg border border-[var(--c-border)] md:block">
       <table className="w-full min-w-[1200px] text-left text-xs">
-        <thead className="sticky top-[57px] z-10 backdrop-blur-sm" style={{ background: "color-mix(in srgb, var(--c-card-solid) 95%, transparent)" }}>
+        <thead className="sticky top-[49px] z-10" style={{ background: "var(--c-card-solid)" }}>
           <tr className="text-[var(--c-secondary)]">
             <Th>排名</Th>
             <Th>院校代号</Th>
@@ -1876,7 +1876,7 @@ function ZhuankeTable({ rows, talentFilter, meta }: { rows: ZhuankeRow[]; talent
                   isHL ? "bg-[var(--c-primary-10)]" : ""
                 }`}
               >
-                <Td><span className="font-mono text-[var(--c-secondary-70)]">{r[0]}</span></Td>
+                <Td><span className="font-mono text-[var(--c-secondary-70)]">{(page - 1) * 50 + i + 1}</span></Td>
                 <Td><span className="font-mono">{r[1]}</span></Td>
                 <Td><span className="text-[var(--c-title)]">{r[2]}</span></Td>
                 <Td><span className="font-mono text-[var(--c-body)]">{r[3] || "-"}</span></Td>
@@ -1913,7 +1913,7 @@ function ZhuankeTable({ rows, talentFilter, meta }: { rows: ZhuankeRow[]; talent
             <div className="flex items-start justify-between gap-2 border-b border-[var(--c-border-soft)] pb-2">
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2">
-                  <span className="font-mono text-[10px] text-[var(--c-secondary-50)]">#{r[0]}</span>
+                  <span className="font-mono text-[10px] text-[var(--c-secondary-50)]">#{(page - 1) * 50 + i + 1}</span>
                   <span className="truncate text-[var(--c-title)] font-medium">{r[2]}</span>
                 </div>
                 <div className="mt-0.5 flex items-center gap-2 text-[10px] text-[var(--c-secondary)]">
