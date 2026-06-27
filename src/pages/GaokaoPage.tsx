@@ -704,7 +704,7 @@ export default function GaokaoPage() {
   return (
     <div ref={containerRef} className="relative min-h-screen">
       {/* 顶部导航 */}
-      <header className="sticky top-0 z-30 border-b border-[var(--c-border)] bg-[var(--c-bg)] backdrop-blur-md">
+      <header className="sticky top-0 z-30 border-b border-[var(--c-border)] bg-[var(--c-bg)]">
         <div className="mx-auto flex max-w-[1200px] items-center justify-between px-4 py-3 md:px-6">
           <a href="#/talent" className="flex items-center gap-2 text-[var(--c-body)] transition hover:text-[var(--c-primary)]">
             <ChevronLeft className="h-4 w-4" />
@@ -1732,7 +1732,7 @@ function BenkeTable({ rows, talentFilter, meta, page }: { rows: BenkeRow[]; tale
             return (
               <tr
                 key={i}
-                className={`border-t border-[var(--c-border)] transition hover:bg-[var(--c-primary-8)] ${
+                className={`border-t border-[var(--c-border)] transition-colors hover:bg-[var(--c-primary-8)] ${
                   isHL ? "bg-[var(--c-primary-10)]" : ""
                 }`}
               >
@@ -1872,7 +1872,7 @@ function ZhuankeTable({ rows, talentFilter, meta, page }: { rows: ZhuankeRow[]; 
             return (
               <tr
                 key={i}
-                className={`border-t border-[var(--c-border)] transition hover:bg-[var(--c-primary-8)] ${
+                className={`border-t border-[var(--c-border)] transition-colors hover:bg-[var(--c-primary-8)] ${
                   isHL ? "bg-[var(--c-primary-10)]" : ""
                 }`}
               >
