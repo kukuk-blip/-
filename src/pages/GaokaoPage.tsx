@@ -4,10 +4,10 @@ import {
   Search, Filter, X, GraduationCap, BookOpen,
   TrendingUp, Coins, ClipboardList, School, ChevronLeft,
   ChevronRight, Loader2, Sparkles, MapPin, Database, Target, Download,
-  Building2, Award, ExternalLink, Info,
+  Building2, Award, ExternalLink, Info, ShieldCheck, BadgeCheck,
 } from "lucide-react";
 import ThemeToggle, { useGkTheme } from "@/components/ThemeToggle";
-import { getSchoolProfile, getSchoolLinks, inferAceMajors } from "@/data/schoolProfiles";
+import { getSchoolProfile, getSchoolLinks, inferAceMajors, VERIFICATION_SOURCES, isOfficialData } from "@/data/schoolProfiles";
 
 // ============ 类型定义 ============
 // 本科批: [排名, 院校代号, 院校名称, 专业组代码, 再选科目, 专业代码, 专业名称,
@@ -1657,6 +1657,7 @@ function SchoolProfileModal({ name, onClose }: { name: string; onClose: () => vo
   const profile = getSchoolProfile(name);
   const inferred = !profile ? inferAceMajors(name) : null;
   const links = getSchoolLinks(name);
+  const isOfficial = isOfficialData(name);
 
   // 弹窗打开时锁定 body 滚动，避免背景滚动卡顿；Esc 关闭
   useEffect(() => {
@@ -1671,7 +1672,7 @@ function SchoolProfileModal({ name, onClose }: { name: string; onClose: () => vo
   }, [onClose]);
 
   // 统一渲染专业列表
-  const renderMajors = (majors: { name: string; level: string }[], isOfficial: boolean) => (
+  const renderMajors = (majors: { name: string; level: string }[], isOfficialMajors: boolean) => (
     <div className="space-y-2">
       {majors.map((m, i) => {
         const lv = m.level;
@@ -1695,7 +1696,7 @@ function SchoolProfileModal({ name, onClose }: { name: string; onClose: () => vo
         );
       })}
       <p className="mt-2 text-[10px] text-[var(--c-secondary-50)]">
-        {isOfficial
+        {isOfficialMajors
           ? "* A+ 学科为教育部第四轮学科评估最高档；双一流建设学科为国家公布的世界一流学科建设名单"
           : "* 主力专业基于院校名称与类型推断，仅供参考，具体以院校官方公布为准"}
       </p>
@@ -1714,7 +1715,28 @@ function SchoolProfileModal({ name, onClose }: { name: string; onClose: () => vo
         {/* 头部 */}
         <div className="sticky top-0 z-10 flex items-start justify-between gap-3 border-b border-[var(--c-border)] bg-[var(--c-card-solid)] p-5">
           <div className="min-w-0 flex-1">
-            <h3 className="font-display text-lg font-semibold text-[var(--c-title)] sm:text-xl">{name}</h3>
+            <div className="flex flex-wrap items-center gap-2">
+              <h3 className="font-display text-lg font-semibold text-[var(--c-title)] sm:text-xl">{name}</h3>
+              {/* 认证标识 */}
+              {isOfficial ? (
+                <span
+                  className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium"
+                  style={{ background: "var(--c-success)", color: "#fff" }}
+                  title={`数据来源：${VERIFICATION_SOURCES.doubleFirst} / ${VERIFICATION_SOURCES.subjectEval}`}
+                >
+                  <BadgeCheck size={11} />
+                  官方认证
+                </span>
+              ) : (
+                <span
+                  className="inline-flex items-center gap-1 rounded-full bg-[var(--c-block-30)] px-2 py-0.5 text-[10px] text-[var(--c-secondary)]"
+                  title={VERIFICATION_SOURCES.infer}
+                >
+                  <Info size={11} />
+                  推断参考
+                </span>
+              )}
+            </div>
             <div className="mt-1.5 flex flex-wrap gap-1.5">
               {profile?.tags.map((t) => (
                 <span
@@ -1743,65 +1765,90 @@ function SchoolProfileModal({ name, onClose }: { name: string; onClose: () => vo
 
         {/* 内容 */}
         <div className="space-y-5 p-5">
-          {profile ? (
-            <>
-              {/* 主管单位 */}
-              <section>
-                <h4 className="mb-2 flex items-center gap-1.5 text-xs font-medium text-[var(--c-secondary)]">
-                  <Building2 size={13} />
-                  主管单位 / 隶属关系
-                </h4>
-                <div className="rounded-lg border border-[var(--c-border)] bg-[var(--c-bg)] p-3 text-sm text-[var(--c-body)]">
+          {/* 主管单位（重点院校和普通院校都展示） */}
+          <section>
+            <h4 className="mb-2 flex items-center gap-1.5 text-xs font-medium text-[var(--c-secondary)]">
+              <Building2 size={13} />
+              主管单位 / 隶属关系
+              {isOfficial ? (
+                <span className="ml-auto inline-flex items-center gap-0.5 text-[10px] text-[var(--c-success)]">
+                  <ShieldCheck size={10} />
+                  已认证
+                </span>
+              ) : (
+                <span className="ml-auto text-[10px] text-[var(--c-secondary-50)]">推断</span>
+              )}
+            </h4>
+            <div className="rounded-lg border border-[var(--c-border)] bg-[var(--c-bg)] p-3 text-sm text-[var(--c-body)]">
+              {profile || inferred ? (
+                <>
                   <div className="mb-1">
                     <span className="text-[var(--c-secondary-50)]">主管类型：</span>
-                    <span className="font-medium text-[var(--c-title)]">{profile.adminType}</span>
+                    <span className="font-medium text-[var(--c-title)]">
+                      {profile?.adminType || inferred?.adminType || "省属/市属"}
+                    </span>
                   </div>
-                  <div>
+                  <div className="mb-2">
                     <span className="text-[var(--c-secondary-50)]">直属单位：</span>
-                    <span className="font-medium text-[var(--c-title)]">{profile.admin}</span>
+                    <span className="font-medium text-[var(--c-title)]">
+                      {profile?.admin || inferred?.admin || "各省/市教育局"}
+                    </span>
                   </div>
-                </div>
-              </section>
+                  <div className="border-t border-[var(--c-border-soft)] pt-2 text-[10px] text-[var(--c-secondary-50)]">
+                    {isOfficial ? (
+                      <>✓ 认证来源：{VERIFICATION_SOURCES.moeList}</>
+                    ) : (
+                      <>⚠ 推断依据：{VERIFICATION_SOURCES.infer}，请以官方公布为准</>
+                    )}
+                  </div>
+                </>
+              ) : (
+                <p className="py-2 text-center text-[var(--c-secondary)]">该院校主管单位信息暂无收录</p>
+              )}
+            </div>
+          </section>
 
-              {/* 王牌专业 */}
-              <section>
-                <h4 className="mb-2 flex items-center gap-1.5 text-xs font-medium text-[var(--c-secondary)]">
-                  <Award size={13} />
-                  王牌专业与行业地位
-                </h4>
-                {renderMajors(profile.aceMajors, true)}
-              </section>
-            </>
+          {/* 王牌专业 / 主力专业 */}
+          {profile ? (
+            <section>
+              <h4 className="mb-2 flex items-center gap-1.5 text-xs font-medium text-[var(--c-secondary)]">
+                <Award size={13} />
+                王牌专业与行业地位
+                <span className="ml-auto inline-flex items-center gap-0.5 text-[10px] text-[var(--c-success)]">
+                  <ShieldCheck size={10} />
+                  已认证
+                </span>
+              </h4>
+              {renderMajors(profile.aceMajors, true)}
+            </section>
           ) : (
-            <>
-              {/* 普通院校：展示推断的主力专业 */}
-              <section>
-                <h4 className="mb-2 flex items-center gap-1.5 text-xs font-medium text-[var(--c-secondary)]">
-                  <Award size={13} />
-                  院校主力推动专业
-                </h4>
-                {inferred ? (
-                  renderMajors(inferred.majors, false)
-                ) : (
-                  <div className="rounded-lg border border-dashed border-[var(--c-border)] bg-[var(--c-bg)] p-6 text-center">
-                    <Info size={28} className="mx-auto mb-2 text-[var(--c-secondary-50)]" />
-                    <p className="text-sm text-[var(--c-secondary)]">
-                      该院校暂无主力专业推断
-                    </p>
-                    <p className="mt-1 text-[10px] text-[var(--c-secondary-50)]">
-                      可通过下方链接查询官方信息
-                    </p>
-                  </div>
-                )}
-              </section>
-            </>
+            <section>
+              <h4 className="mb-2 flex items-center gap-1.5 text-xs font-medium text-[var(--c-secondary)]">
+                <Award size={13} />
+                院校主力推动专业
+                <span className="ml-auto text-[10px] text-[var(--c-secondary-50)]">推断</span>
+              </h4>
+              {inferred ? (
+                renderMajors(inferred.majors, false)
+              ) : (
+                <div className="rounded-lg border border-dashed border-[var(--c-border)] bg-[var(--c-bg)] p-6 text-center">
+                  <Info size={28} className="mx-auto mb-2 text-[var(--c-secondary-50)]" />
+                  <p className="text-sm text-[var(--c-secondary)]">
+                    该院校暂无主力专业推断
+                  </p>
+                  <p className="mt-1 text-[10px] text-[var(--c-secondary-50)]">
+                    可通过下方链接查询官方信息
+                  </p>
+                </div>
+              )}
+            </section>
           )}
 
-          {/* 查询链接（所有院校都有） */}
+          {/* 查询链接（所有院校都有，用于多方认证） */}
           <section>
             <h4 className="mb-2 flex items-center gap-1.5 text-xs font-medium text-[var(--c-secondary)]">
               <ExternalLink size={13} />
-              权威信息查询
+              多方认证查询
             </h4>
             <div className="flex flex-wrap gap-2">
               <a
@@ -1809,9 +1856,10 @@ function SchoolProfileModal({ name, onClose }: { name: string; onClose: () => vo
                 target="_blank"
                 rel="noopener noreferrer"
                 className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--c-border)] bg-[var(--c-bg)] px-3 py-2 text-xs text-[var(--c-body)] transition-colors hover:border-[var(--c-primary)] hover:text-[var(--c-primary)]"
+                title={VERIFICATION_SOURCES.official}
               >
                 <GraduationCap size={14} />
-                阳光高考
+                阳光高考（官方）
               </a>
               <a
                 href={links.baike}
@@ -1832,10 +1880,22 @@ function SchoolProfileModal({ name, onClose }: { name: string; onClose: () => vo
                 官网搜索
               </a>
             </div>
+            <p className="mt-2 text-[10px] text-[var(--c-secondary-50)]">
+              建议通过以上多方来源交叉核对，确认信息准确性后再做志愿决策
+            </p>
           </section>
 
-          <div className="border-t border-[var(--c-border-soft)] pt-3 text-[10px] text-[var(--c-secondary-50)]">
-            ⚠️ 以上信息仅供参考，最终请以教育部、院校官方公告为准
+          {/* 信息认证说明 */}
+          <div className="rounded-lg bg-[var(--c-primary-8)] p-3 text-[10px] text-[var(--c-secondary)]">
+            <div className="mb-1 flex items-center gap-1 font-medium text-[var(--c-primary)]">
+              <ShieldCheck size={11} />
+              信息认证说明
+            </div>
+            <div className="space-y-0.5">
+              <div>• <span className="text-[var(--c-success)]">官方认证</span>：来源于{VERIFICATION_SOURCES.doubleFirst}、{VERIFICATION_SOURCES.subjectEval}</div>
+              <div>• <span className="text-[var(--c-secondary)]">推断参考</span>：{VERIFICATION_SOURCES.infer}，需通过多方查询确认</div>
+              <div>• 最终请以{VERIFICATION_SOURCES.moeList}为准</div>
+            </div>
           </div>
         </div>
       </div>

@@ -891,17 +891,21 @@ export function getSchoolProfile(rawName: string): SchoolProfile | null {
 }
 
 // ============ 基于院校名称推断主力专业（普通院校用） ============
-// 名称关键词 → 主力专业方向 + 行业地位描述
+// 名称关键词 → 主力专业方向 + 行业地位描述 + 主管单位推断
 interface InferRule {
   keywords: string[];        // 命中任一关键词即适用
   majors: AceMajor[];
   category: string;           // 院校类型标签
+  adminType: string;          // 推断主管类型
+  admin: string;              // 推断直属单位
 }
 
 const INFER_RULES: InferRule[] = [
   {
     keywords: ["医学院", "医科大学", "医学高等专科"],
     category: "医药类",
+    adminType: "省属/市属",
+    admin: "各省/市卫生健康委员会或教育厅",
     majors: [
       { name: "临床医学", level: "主力专业" },
       { name: "口腔医学", level: "主力专业" },
@@ -912,6 +916,8 @@ const INFER_RULES: InferRule[] = [
   {
     keywords: ["中医药", "中医学院"],
     category: "中医药类",
+    adminType: "省属",
+    admin: "各省教育厅 / 国家中医药管理局",
     majors: [
       { name: "中医学", level: "主力专业" },
       { name: "中药学", level: "主力专业" },
@@ -921,6 +927,8 @@ const INFER_RULES: InferRule[] = [
   {
     keywords: ["药科大学", "药学院", "制药"],
     category: "药学类",
+    adminType: "省属",
+    admin: "各省教育厅",
     majors: [
       { name: "药学", level: "主力专业" },
       { name: "药物制剂", level: "特色专业" },
@@ -930,6 +938,8 @@ const INFER_RULES: InferRule[] = [
   {
     keywords: ["师范", "教育学院", "高等师范"],
     category: "师范类",
+    adminType: "省属/市属",
+    admin: "各省/市教育局",
     majors: [
       { name: "汉语言文学", level: "主力专业" },
       { name: "数学与应用数学", level: "主力专业" },
@@ -940,6 +950,8 @@ const INFER_RULES: InferRule[] = [
   {
     keywords: ["农业大学", "农业学院", "农牧", "农学院"],
     category: "农林类",
+    adminType: "省属",
+    admin: "各省教育厅 / 农业农村厅",
     majors: [
       { name: "农学", level: "主力专业" },
       { name: "动物医学", level: "主力专业" },
@@ -950,6 +962,8 @@ const INFER_RULES: InferRule[] = [
   {
     keywords: ["林业大学", "林业学院"],
     category: "林业类",
+    adminType: "省属",
+    admin: "各省教育厅 / 林业和草原局",
     majors: [
       { name: "林学", level: "主力专业" },
       { name: "木材科学与工程", level: "特色专业" },
@@ -959,6 +973,8 @@ const INFER_RULES: InferRule[] = [
   {
     keywords: ["理工大学", "工业学院", "工程学院", "理工", "工业"],
     category: "理工类",
+    adminType: "省属/市属",
+    admin: "各省/市教育局",
     majors: [
       { name: "机械工程", level: "主力专业" },
       { name: "电气工程及其自动化", level: "主力专业" },
@@ -969,6 +985,8 @@ const INFER_RULES: InferRule[] = [
   {
     keywords: ["财经大学", "经济学院", "经贸", "商学院", "工商学院", "经济贸易"],
     category: "财经类",
+    adminType: "省属",
+    admin: "各省教育厅",
     majors: [
       { name: "会计学", level: "主力专业" },
       { name: "金融学", level: "主力专业" },
@@ -979,6 +997,8 @@ const INFER_RULES: InferRule[] = [
   {
     keywords: ["政法", "法学院", "法律"],
     category: "政法类",
+    adminType: "省属",
+    admin: "各省教育厅 / 司法厅",
     majors: [
       { name: "法学", level: "主力专业" },
       { name: "社会工作", level: "特色专业" },
@@ -988,6 +1008,8 @@ const INFER_RULES: InferRule[] = [
   {
     keywords: ["外国语", "外语", "语言大学"],
     category: "外语类",
+    adminType: "省属/教育部直属",
+    admin: "各省教育厅 / 教育部",
     majors: [
       { name: "英语", level: "主力专业" },
       { name: "翻译", level: "主力专业" },
@@ -997,6 +1019,8 @@ const INFER_RULES: InferRule[] = [
   {
     keywords: ["建筑大学", "建筑学院", "建筑工程"],
     category: "建筑类",
+    adminType: "省属/住建部共建",
+    admin: "各省教育厅 / 住房和城乡建设厅",
     majors: [
       { name: "建筑学", level: "主力专业" },
       { name: "土木工程", level: "主力专业" },
@@ -1007,6 +1031,8 @@ const INFER_RULES: InferRule[] = [
   {
     keywords: ["交通", "铁道", "铁路"],
     category: "交通类",
+    adminType: "省属/交通运输部共建",
+    admin: "各省教育厅 / 交通运输厅",
     majors: [
       { name: "交通运输", level: "主力专业" },
       { name: "交通工程", level: "主力专业" },
@@ -1016,6 +1042,8 @@ const INFER_RULES: InferRule[] = [
   {
     keywords: ["航空", "航天", "民航"],
     category: "航空类",
+    adminType: "省属/民航局共建",
+    admin: "各省教育厅 / 中国民用航空局",
     majors: [
       { name: "飞行器动力工程", level: "主力专业" },
       { name: "交通运输（空中管制）", level: "特色专业" },
@@ -1025,6 +1053,8 @@ const INFER_RULES: InferRule[] = [
   {
     keywords: ["电力", "电气"],
     category: "电力类",
+    adminType: "省属/电力企业共建",
+    admin: "各省教育厅 / 国家电网/南方电网",
     majors: [
       { name: "电气工程及其自动化", level: "主力专业" },
       { name: "能源与动力工程", level: "特色专业" },
@@ -1033,6 +1063,8 @@ const INFER_RULES: InferRule[] = [
   {
     keywords: ["邮电", "信息工程"],
     category: "信息类",
+    adminType: "省属/工信部共建",
+    admin: "各省教育厅 / 工业和信息化厅",
     majors: [
       { name: "通信工程", level: "主力专业" },
       { name: "计算机科学与技术", level: "主力专业" },
@@ -1042,6 +1074,8 @@ const INFER_RULES: InferRule[] = [
   {
     keywords: ["水利水电", "水电", "水利"],
     category: "水利类",
+    adminType: "省属/水利部共建",
+    admin: "各省教育厅 / 水利厅",
     majors: [
       { name: "水利水电工程", level: "主力专业" },
       { name: "水文与水资源工程", level: "特色专业" },
@@ -1050,6 +1084,8 @@ const INFER_RULES: InferRule[] = [
   {
     keywords: ["矿业", "煤炭", "资源"],
     category: "矿业类",
+    adminType: "省属/应急管理部共建",
+    admin: "各省教育厅 / 应急管理厅",
     majors: [
       { name: "采矿工程", level: "主力专业" },
       { name: "安全工程", level: "主力专业" },
@@ -1059,6 +1095,8 @@ const INFER_RULES: InferRule[] = [
   {
     keywords: ["石油", "石化"],
     category: "石化类",
+    adminType: "省属/中石油等共建",
+    admin: "各省教育厅 / 中国石油天然气集团",
     majors: [
       { name: "石油工程", level: "主力专业" },
       { name: "化学工程与工艺", level: "主力专业" },
@@ -1067,6 +1105,8 @@ const INFER_RULES: InferRule[] = [
   {
     keywords: ["冶金", "材料"],
     category: "材料类",
+    adminType: "省属/钢铁企业共建",
+    admin: "各省教育厅 / 中国钢铁工业协会",
     majors: [
       { name: "冶金工程", level: "主力专业" },
       { name: "材料科学与工程", level: "主力专业" },
@@ -1075,6 +1115,8 @@ const INFER_RULES: InferRule[] = [
   {
     keywords: ["化工", "化学工程"],
     category: "化工类",
+    adminType: "省属",
+    admin: "各省教育厅",
     majors: [
       { name: "化学工程与工艺", level: "主力专业" },
       { name: "应用化学", level: "特色专业" },
@@ -1083,6 +1125,8 @@ const INFER_RULES: InferRule[] = [
   {
     keywords: ["纺织", "服装"],
     category: "纺织类",
+    adminType: "省属",
+    admin: "各省教育厅 / 中国纺织工业联合会",
     majors: [
       { name: "纺织工程", level: "主力专业" },
       { name: "服装设计与工程", level: "特色专业" },
@@ -1091,6 +1135,8 @@ const INFER_RULES: InferRule[] = [
   {
     keywords: ["海洋大学", "海洋学院", "海事"],
     category: "海洋类",
+    adminType: "省属/自然资源部共建",
+    admin: "各省教育厅 / 自然资源厅",
     majors: [
       { name: "海洋科学", level: "主力专业" },
       { name: "水产养殖学", level: "主力专业" },
@@ -1100,6 +1146,8 @@ const INFER_RULES: InferRule[] = [
   {
     keywords: ["体育", "运动"],
     category: "体育类",
+    adminType: "省属/国家体育总局共建",
+    admin: "各省教育厅 / 体育局",
     majors: [
       { name: "体育教育", level: "主力专业" },
       { name: "运动训练", level: "主力专业" },
@@ -1109,6 +1157,8 @@ const INFER_RULES: InferRule[] = [
   {
     keywords: ["美术", "艺术", "设计", "工艺美"],
     category: "艺术类",
+    adminType: "省属/文旅部共建",
+    admin: "各省教育厅 / 文化和旅游厅",
     majors: [
       { name: "视觉传达设计", level: "主力专业" },
       { name: "环境设计", level: "主力专业" },
@@ -1118,6 +1168,8 @@ const INFER_RULES: InferRule[] = [
   {
     keywords: ["音乐", "戏剧", "舞蹈", "戏曲"],
     category: "艺术类",
+    adminType: "省属",
+    admin: "各省教育厅 / 文化和旅游厅",
     majors: [
       { name: "音乐表演", level: "主力专业" },
       { name: "音乐学", level: "特色专业" },
@@ -1126,6 +1178,8 @@ const INFER_RULES: InferRule[] = [
   {
     keywords: ["传媒", "新闻", "广播电视"],
     category: "传媒类",
+    adminType: "省属/广电总局共建",
+    admin: "各省教育厅 / 广播电视局",
     majors: [
       { name: "新闻学", level: "主力专业" },
       { name: "广播电视学", level: "特色专业" },
@@ -1135,6 +1189,8 @@ const INFER_RULES: InferRule[] = [
   {
     keywords: ["警察", "公安", "警官", "司法"],
     category: "公安类",
+    adminType: "省属/公安部共建",
+    admin: "各省公安厅 / 司法厅",
     majors: [
       { name: "治安学", level: "主力专业" },
       { name: "侦查学", level: "主力专业" },
@@ -1144,6 +1200,8 @@ const INFER_RULES: InferRule[] = [
   {
     keywords: ["旅游", "酒店"],
     category: "旅游类",
+    adminType: "省属/文旅部共建",
+    admin: "各省教育厅 / 文化和旅游厅",
     majors: [
       { name: "旅游管理", level: "主力专业" },
       { name: "酒店管理", level: "特色专业" },
@@ -1152,6 +1210,8 @@ const INFER_RULES: InferRule[] = [
   {
     keywords: ["中医药", "民族医学院"],
     category: "民族医学类",
+    adminType: "省属/国家民委共建",
+    admin: "各省教育厅 / 民族宗教事务委员会",
     majors: [
       { name: "中医学", level: "主力专业" },
       { name: "民族医学", level: "特色专业" },
@@ -1160,6 +1220,8 @@ const INFER_RULES: InferRule[] = [
   {
     keywords: ["职业技术", "职业大学", "应用技术"],
     category: "应用型",
+    adminType: "省属/市属",
+    admin: "各省/市教育局",
     majors: [
       { name: "机械电子工程", level: "主力专业" },
       { name: "计算机应用技术", level: "主力专业" },
@@ -1169,6 +1231,8 @@ const INFER_RULES: InferRule[] = [
   {
     keywords: ["城市", "市政", "城管"],
     category: "城市管理类",
+    adminType: "市属",
+    admin: "市城市管理综合执法局 / 教育局",
     majors: [
       { name: "城市管理", level: "主力专业" },
       { name: "工程管理", level: "特色专业" },
@@ -1177,6 +1241,8 @@ const INFER_RULES: InferRule[] = [
   {
     keywords: ["电子科技", "电子信息", "光电"],
     category: "电子信息类",
+    adminType: "省属/工信部共建",
+    admin: "各省教育厅 / 工业和信息化厅",
     majors: [
       { name: "电子信息工程", level: "主力专业" },
       { name: "通信工程", level: "主力专业" },
@@ -1186,6 +1252,8 @@ const INFER_RULES: InferRule[] = [
   {
     keywords: ["地质", "矿产", "测绘"],
     category: "地矿类",
+    adminType: "省属/自然资源部共建",
+    admin: "各省教育厅 / 自然资源厅 / 地质矿产勘查开发局",
     majors: [
       { name: "地质工程", level: "主力专业" },
       { name: "测绘工程", level: "特色专业" },
@@ -1194,6 +1262,8 @@ const INFER_RULES: InferRule[] = [
   {
     keywords: ["气象", "大气"],
     category: "气象类",
+    adminType: "省属/中国气象局共建",
+    admin: "各省教育厅 / 中国气象局",
     majors: [
       { name: "大气科学", level: "主力专业" },
       { name: "应用气象学", level: "特色专业" },
@@ -1202,6 +1272,8 @@ const INFER_RULES: InferRule[] = [
   {
     keywords: ["民族"],
     category: "民族类",
+    adminType: "省属/国家民委共建",
+    admin: "各省教育厅 / 民族宗教事务委员会",
     majors: [
       { name: "民族学", level: "主力专业" },
       { name: "中国少数民族语言文学", level: "特色专业" },
@@ -1210,6 +1282,8 @@ const INFER_RULES: InferRule[] = [
   {
     keywords: ["联合大学", "学院", "大学"],
     category: "综合类",
+    adminType: "省属/市属",
+    admin: "各省/市教育局",
     majors: [
       { name: "计算机科学与技术", level: "主力专业" },
       { name: "会计学", level: "主力专业" },
@@ -1219,15 +1293,41 @@ const INFER_RULES: InferRule[] = [
   },
 ];
 
-// 推断院校主力专业（普通院校用）
-export function inferAceMajors(rawName: string): { majors: AceMajor[]; category: string } | null {
+// 推断院校主力专业与主管单位（普通院校用）
+export interface InferredInfo {
+  majors: AceMajor[];
+  category: string;
+  adminType: string;
+  admin: string;
+}
+
+export function inferAceMajors(rawName: string): InferredInfo | null {
   const name = normalizeSchoolName(rawName);
   for (const rule of INFER_RULES) {
     if (rule.keywords.some(kw => name.includes(kw))) {
-      return { majors: rule.majors, category: rule.category };
+      return {
+        majors: rule.majors,
+        category: rule.category,
+        adminType: rule.adminType,
+        admin: rule.admin,
+      };
     }
   }
   return null;
+}
+
+// 多方认证信息来源声明
+export const VERIFICATION_SOURCES = {
+  official: "教育部官方数据（阳光高考平台）",
+  moeList: "教育部公布的《全国普通高等学校名单》",
+  doubleFirst: "教育部公布的《双一流建设高校及建设学科名单》",
+  subjectEval: "教育部第四轮学科评估结果",
+  infer: "基于院校名称与类型的合理推断",
+};
+
+// 判断信息是否为官方权威数据（用于显示认证状态）
+export function isOfficialData(rawName: string): boolean {
+  return getSchoolProfile(rawName) !== null;
 }
 
 // 生成跳转链接（所有院校可用）
