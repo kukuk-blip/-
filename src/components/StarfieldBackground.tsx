@@ -1,11 +1,10 @@
 import { useEffect, useRef } from "react";
 
 /**
- * 银白星空动态背景
- * - 银白色闪烁星星 + 偶尔划过的流星
- * - 鼠标交互：周围星星被引力吸引聚集，鼠标移开后弹簧回归原位（聚集与分散）
- * - 大星点带十字星芒，流星带渐变尾迹
- * - 移动端自动减少星星数量，性能更优
+ * 银白星空动态背景（移动端优化版）
+ * - 预渲染星星纹理 + drawImage 贴图，避免每帧 createRadialGradient
+ * - 鼠标交互：星星被引力吸引聚集，鼠标移开后弹簧回归原位
+ * - dpr 限制、星星数量分级，确保移动端流畅
  */
 export default function StarfieldBackground() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -18,6 +17,7 @@ export default function StarfieldBackground() {
 
     let width = 0;
     let height = 0;
+    let dpr = 1;
     let stars: Star[] = [];
     let meteors: Meteor[] = [];
     let animationId = 0;
@@ -31,10 +31,90 @@ export default function StarfieldBackground() {
     let mouseY = -9999;
     let mouseOnScreen = false;
     // 鼠标引力参数
-    const attractRadius = isMobile ? 130 : 170;   // 影响半径
-    const attractStrength = isMobile ? 0.35 : 0.45; // 引力强度
-    const springK = 0.06;   // 回归原位的弹簧系数
-    const damping = 0.82;   // 阻尼，避免无限震荡
+    const attractRadius = isMobile ? 130 : 170;
+    const attractStrength = isMobile ? 0.35 : 0.45;
+    const springK = 0.06;
+    const damping = 0.82;
+
+    // ==================== 预渲染星星纹理 ====================
+    // 把星星光晕一次性渲染到离屏 canvas，主循环用 drawImage 贴图，性能极佳
+    // 4 个尺寸档：0=小(无星芒) 1=中 2=大 3=大+星芒
+    const starTextures: HTMLCanvasElement[] = [];
+    function buildStarTextures() {
+      const sizes = [
+        { r: 1.0, spike: false },
+        { r: 1.6, spike: false },
+        { r: 2.2, spike: false },
+        { r: 2.6, spike: true },
+      ];
+      starTextures.length = 0;
+      for (const cfg of sizes) {
+        const r = cfg.r;
+        const texSize = Math.ceil((cfg.spike ? r * 12 : r * 4) + 2);
+        const off = document.createElement("canvas");
+        off.width = texSize;
+        off.height = texSize;
+        const octx = off.getContext("2d");
+        if (!octx) continue;
+        const cx = texSize / 2;
+        const cy = texSize / 2;
+
+        // 柔和光晕
+        const glowGrad = octx.createRadialGradient(cx, cy, 0, cx, cy, r * 3.5);
+        glowGrad.addColorStop(0, "rgba(240,245,255,1)");
+        glowGrad.addColorStop(0.15, "rgba(220,230,250,0.85)");
+        glowGrad.addColorStop(0.4, "rgba(190,205,235,0.4)");
+        glowGrad.addColorStop(0.7, "rgba(150,170,210,0.08)");
+        glowGrad.addColorStop(1, "rgba(100,120,160,0)");
+        octx.beginPath();
+        octx.arc(cx, cy, r * 3.5, 0, Math.PI * 2);
+        octx.fillStyle = glowGrad;
+        octx.fill();
+
+        // 核心亮点
+        const coreGrad = octx.createRadialGradient(cx, cy, 0, cx, cy, r * 1.2);
+        coreGrad.addColorStop(0, "rgba(255,255,255,1)");
+        coreGrad.addColorStop(0.35, "rgba(240,245,255,0.9)");
+        coreGrad.addColorStop(0.7, "rgba(210,220,240,0.5)");
+        coreGrad.addColorStop(1, "rgba(170,185,210,0)");
+        octx.beginPath();
+        octx.arc(cx, cy, r * 1.2, 0, Math.PI * 2);
+        octx.fillStyle = coreGrad;
+        octx.fill();
+
+        // 十字星芒
+        if (cfg.spike) {
+          const spikeLen = r * 5;
+          const spikeWidth = r * 0.35;
+          octx.save();
+          octx.globalAlpha = 0.5;
+          octx.strokeStyle = "#e8eef8";
+          octx.lineWidth = spikeWidth;
+          octx.lineCap = "round";
+          octx.beginPath();
+          octx.moveTo(cx - spikeLen, cy);
+          octx.lineTo(cx + spikeLen, cy);
+          octx.stroke();
+          octx.beginPath();
+          octx.moveTo(cx, cy - spikeLen);
+          octx.lineTo(cx, cy + spikeLen);
+          octx.stroke();
+          const diagLen = spikeLen * 0.5;
+          octx.lineWidth = spikeWidth * 0.5;
+          octx.globalAlpha = 0.225;
+          octx.beginPath();
+          octx.moveTo(cx - diagLen, cy - diagLen);
+          octx.lineTo(cx + diagLen, cy + diagLen);
+          octx.stroke();
+          octx.beginPath();
+          octx.moveTo(cx + diagLen, cy - diagLen);
+          octx.lineTo(cx - diagLen, cy + diagLen);
+          octx.stroke();
+          octx.restore();
+        }
+        starTextures.push(off);
+      }
+    }
 
     // ==================== 星星（带物理） ====================
     class Star {
@@ -45,6 +125,7 @@ export default function StarfieldBackground() {
       vx = 0;
       vy = 0;
       radius = 0.3;
+      texIndex = 0;       // 纹理档位索引
       baseAlpha = 0.35;
       twinklePhase = 0;
       twinkleSpeed = 0.3;
@@ -65,6 +146,11 @@ export default function StarfieldBackground() {
         this.vx = 0;
         this.vy = 0;
         this.radius = 0.3 + Math.random() * 2.2;
+        // 根据半径选择纹理档：小→0, 中→1, 大→2, 最大且亮→3(带星芒)
+        if (this.radius < 0.9) this.texIndex = 0;
+        else if (this.radius < 1.4) this.texIndex = 1;
+        else if (this.radius < 2.0) this.texIndex = 2;
+        else this.texIndex = 3;
         this.baseAlpha = 0.35 + Math.random() * 0.65;
         this.twinklePhase = Math.random() * Math.PI * 2;
         this.twinkleSpeed = 0.3 + Math.random() * 1.8;
@@ -87,7 +173,6 @@ export default function StarfieldBackground() {
           const distSq = dx * dx + dy * dy;
           if (distSq < attractRadius * attractRadius && distSq > 1) {
             const dist = Math.sqrt(distSq);
-            // 距离越近，引力越大；距离为 0 时不施力，避免坍缩到一点
             const force = (1 - dist / attractRadius) * attractStrength;
             this.vx += (dx / dist) * force;
             this.vy += (dy / dist) * force;
@@ -103,71 +188,14 @@ export default function StarfieldBackground() {
         return Math.max(0.08, Math.min(1, this.baseAlpha + twinkle));
       }
 
+      // 用预渲染纹理 drawImage 贴图，避免每帧 createRadialGradient
       draw(ctx: CanvasRenderingContext2D) {
+        const tex = starTextures[this.texIndex];
+        if (!tex) return;
         const alpha = this.getAlpha();
-        const r = this.radius;
-
-        const glowGrad = ctx.createRadialGradient(this.x, this.y, 0, this.x, this.y, r * 3.5);
-        glowGrad.addColorStop(0, `rgba(240,245,255,${alpha})`);
-        glowGrad.addColorStop(0.15, `rgba(220,230,250,${alpha * 0.85})`);
-        glowGrad.addColorStop(0.4, `rgba(190,205,235,${alpha * 0.4})`);
-        glowGrad.addColorStop(0.7, `rgba(150,170,210,${alpha * 0.08})`);
-        glowGrad.addColorStop(1, "rgba(100,120,160,0)");
-
-        ctx.beginPath();
-        ctx.arc(this.x, this.y, r * 3.5, 0, Math.PI * 2);
-        ctx.fillStyle = glowGrad;
-        ctx.fill();
-
-        const coreGrad = ctx.createRadialGradient(this.x, this.y, 0, this.x, this.y, r * 1.2);
-        coreGrad.addColorStop(0, `rgba(255,255,255,${alpha})`);
-        coreGrad.addColorStop(0.35, `rgba(240,245,255,${alpha * 0.9})`);
-        coreGrad.addColorStop(0.7, `rgba(210,220,240,${alpha * 0.5})`);
-        coreGrad.addColorStop(1, "rgba(170,185,210,0)");
-
-        ctx.beginPath();
-        ctx.arc(this.x, this.y, r * 1.2, 0, Math.PI * 2);
-        ctx.fillStyle = coreGrad;
-        ctx.fill();
-
-        if (r > 1.1 && alpha > 0.4) {
-          const spikeAlpha = alpha * 0.5;
-          const spikeLen = r * 5;
-          const spikeWidth = r * 0.35;
-
-          ctx.save();
-          ctx.globalAlpha = spikeAlpha;
-          ctx.strokeStyle = "#e8eef8";
-          ctx.lineWidth = spikeWidth;
-          ctx.lineCap = "round";
-
-          ctx.beginPath();
-          ctx.moveTo(this.x - spikeLen, this.y);
-          ctx.lineTo(this.x + spikeLen, this.y);
-          ctx.stroke();
-
-          ctx.beginPath();
-          ctx.moveTo(this.x, this.y - spikeLen);
-          ctx.lineTo(this.x, this.y + spikeLen);
-          ctx.stroke();
-
-          const diagLen = spikeLen * 0.5;
-          const diagWidth = spikeWidth * 0.5;
-          ctx.lineWidth = diagWidth;
-          ctx.globalAlpha = spikeAlpha * 0.45;
-
-          ctx.beginPath();
-          ctx.moveTo(this.x - diagLen, this.y - diagLen);
-          ctx.lineTo(this.x + diagLen, this.y + diagLen);
-          ctx.stroke();
-
-          ctx.beginPath();
-          ctx.moveTo(this.x + diagLen, this.y - diagLen);
-          ctx.lineTo(this.x - diagLen, this.y + diagLen);
-          ctx.stroke();
-
-          ctx.restore();
-        }
+        ctx.globalAlpha = alpha;
+        const half = tex.width / 2;
+        ctx.drawImage(tex, this.x - half, this.y - half);
       }
     }
 
@@ -324,14 +352,20 @@ export default function StarfieldBackground() {
     function resizeCanvas() {
       width = window.innerWidth;
       height = window.innerHeight;
-      canvas!.width = width;
-      canvas!.height = height;
+      // dpr 限制：移动端 1.0，桌面 2.0，避免高分屏像素爆炸
+      dpr = isMobile ? 1 : Math.min(window.devicePixelRatio || 1, 2);
+      canvas!.width = Math.floor(width * dpr);
+      canvas!.height = Math.floor(height * dpr);
+      canvas!.style.width = width + "px";
+      canvas!.style.height = height + "px";
+      ctx!.setTransform(dpr, 0, 0, dpr, 0, 0);
 
-      const divisor = isMobile ? 4200 : 2800;
+      // 移动端大幅减少星星数量，防止卡顿
+      const divisor = isMobile ? 7000 : 3500;
       const targetStarCount = Math.floor((width * height) / divisor);
       const clampedCount = Math.max(
-        isMobile ? 100 : 180,
-        Math.min(isMobile ? 320 : 600, targetStarCount)
+        isMobile ? 60 : 150,
+        Math.min(isMobile ? 140 : 450, targetStarCount)
       );
 
       while (stars.length < clampedCount) {
@@ -349,11 +383,11 @@ export default function StarfieldBackground() {
 
     function initStars() {
       stars = [];
-      const divisor = isMobile ? 4200 : 2800;
+      const divisor = isMobile ? 7000 : 3500;
       const targetStarCount = Math.floor((width * height) / divisor);
       const clampedCount = Math.max(
-        isMobile ? 100 : 180,
-        Math.min(isMobile ? 320 : 600, targetStarCount)
+        isMobile ? 60 : 150,
+        Math.min(isMobile ? 140 : 450, targetStarCount)
       );
       for (let i = 0; i < clampedCount; i++) {
         stars.push(new Star());
@@ -399,6 +433,7 @@ export default function StarfieldBackground() {
         star.update(deltaTime);
         star.draw(ctx!);
       }
+      ctx!.globalAlpha = 1; // 重置透明度，避免影响流星
 
       for (let i = meteors.length - 1; i >= 0; i--) {
         const meteor = meteors[i];
@@ -473,6 +508,7 @@ export default function StarfieldBackground() {
 
     // ==================== 启动 ====================
     function init() {
+      buildStarTextures();
       resizeCanvas();
       initStars();
       meteors = [];

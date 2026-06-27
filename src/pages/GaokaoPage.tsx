@@ -1995,12 +1995,37 @@ function Pagination({ page, totalPages, setPage, total }: {
   setPage: (p: number) => void;
   total: number;
 }) {
+  // 生成页码按钮：当前页前后各 2 页，首页末页始终显示，中间用省略号
+  const pageButtons: (number | "...")[] = [];
+  const addPage = (p: number) => pageButtons.push(p);
+  if (totalPages <= 7) {
+    for (let i = 1; i <= totalPages; i++) addPage(i);
+  } else {
+    addPage(1);
+    const left = Math.max(2, page - 1);
+    const right = Math.min(totalPages - 1, page + 1);
+    if (left > 2) pageButtons.push("...");
+    for (let i = left; i <= right; i++) addPage(i);
+    if (right < totalPages - 1) pageButtons.push("...");
+    addPage(totalPages);
+  }
+
+  // 跳转输入框
+  const [jumpInput, setJumpInput] = useState("");
+  const handleJump = () => {
+    const p = parseInt(jumpInput, 10);
+    if (!isNaN(p) && p >= 1 && p <= totalPages) {
+      setPage(p);
+      setJumpInput("");
+    }
+  };
+
   return (
     <div className="mt-4 flex flex-wrap items-center justify-between gap-2">
       <span className="text-xs text-[var(--c-secondary)]">
         共 <span className="text-[var(--c-primary)]">{total.toLocaleString()}</span> 条记录 · 第 {page}/{totalPages} 页
       </span>
-      <div className="flex items-center gap-1">
+      <div className="flex flex-wrap items-center gap-1">
         <button
           onClick={() => setPage(1)}
           disabled={page === 1}
@@ -2015,7 +2040,26 @@ function Pagination({ page, totalPages, setPage, total }: {
         >
           <ChevronLeft className="h-3 w-3" /> 上一页
         </button>
-        <span className="px-2 text-xs text-[var(--c-secondary)]">{page} / {totalPages}</span>
+
+        {/* 页码按钮 */}
+        {pageButtons.map((p, idx) =>
+          p === "..." ? (
+            <span key={`gap-${idx}`} className="px-1 text-xs text-[var(--c-secondary-50)]">…</span>
+          ) : (
+            <button
+              key={p}
+              onClick={() => setPage(p)}
+              className={`min-w-[28px] rounded border px-1.5 py-1 text-xs transition ${
+                p === page
+                  ? "border-[var(--c-primary)] bg-[var(--c-primary-15)] font-medium text-[var(--c-primary)]"
+                  : "border-[var(--c-border)] text-[var(--c-secondary)] hover:border-[var(--c-primary-30)] hover:text-[var(--c-primary)]"
+              }`}
+            >
+              {p}
+            </button>
+          )
+        )}
+
         <button
           onClick={() => setPage(Math.min(totalPages, page + 1))}
           disabled={page === totalPages}
@@ -2030,6 +2074,28 @@ function Pagination({ page, totalPages, setPage, total }: {
         >
           末页
         </button>
+
+        {/* 跳转到指定页 */}
+        <div className="ml-2 flex items-center gap-1">
+          <span className="text-xs text-[var(--c-secondary)]">跳至</span>
+          <input
+            type="number"
+            min={1}
+            max={totalPages}
+            value={jumpInput}
+            onChange={e => setJumpInput(e.target.value)}
+            onKeyDown={e => { if (e.key === "Enter") handleJump(); }}
+            placeholder={String(page)}
+            className="w-14 rounded border border-[var(--c-border)] bg-[var(--c-card)] px-2 py-1 text-center text-xs text-[var(--c-title)] outline-none focus:border-[var(--c-primary)]"
+          />
+          <span className="text-xs text-[var(--c-secondary)]">页</span>
+          <button
+            onClick={handleJump}
+            className="rounded border border-[var(--c-border)] px-2 py-1 text-xs text-[var(--c-secondary)] transition hover:border-[var(--c-primary)] hover:text-[var(--c-primary)]"
+          >
+            跳转
+          </button>
+        </div>
       </div>
     </div>
   );
