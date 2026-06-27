@@ -4,8 +4,10 @@ import {
   Search, Filter, X, GraduationCap, BookOpen,
   TrendingUp, Coins, ClipboardList, School, ChevronLeft,
   ChevronRight, Loader2, Sparkles, MapPin, Database, Target, Download,
+  Building2, Award, ExternalLink, Info,
 } from "lucide-react";
 import ThemeToggle, { useGkTheme } from "@/components/ThemeToggle";
+import { getSchoolProfile, getSchoolLinks } from "@/data/schoolProfiles";
 
 // ============ 类型定义 ============
 // 本科批: [排名, 院校代号, 院校名称, 专业组代码, 再选科目, 专业代码, 专业名称,
@@ -326,6 +328,9 @@ export default function GaokaoPage() {
   type SortDir = "asc" | "desc";
   const [sortField, setSortField] = useState<SortField>("default");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
+
+  // 院校档案弹窗
+  const [profileSchool, setProfileSchool] = useState<string | null>(null);
 
   // 冲稳保推荐：输入分数后自动划分三梯度
   const [showRecommend, setShowRecommend] = useState(false);
@@ -943,9 +948,9 @@ export default function GaokaoPage() {
 
         {/* 表格 */}
         {tab === "benke" ? (
-          <BenkeTable rows={pagedB} talentFilter={talentFilter} meta={meta} page={pageB} />
+          <BenkeTable rows={pagedB} talentFilter={talentFilter} meta={meta} page={pageB} onSchoolClick={setProfileSchool} />
         ) : (
-          <ZhuankeTable rows={pagedZ} talentFilter={talentFilter} meta={meta} page={pageZ} />
+          <ZhuankeTable rows={pagedZ} talentFilter={talentFilter} meta={meta} page={pageZ} onSchoolClick={setProfileSchool} />
         )}
 
         {/* 分页 */}
@@ -955,6 +960,11 @@ export default function GaokaoPage() {
           <Pagination page={pageZ} totalPages={totalPagesZ} setPage={setPageZ} total={filteredZ.length} />
         )}
       </main>
+
+      {/* 院校档案弹窗 */}
+      {profileSchool && (
+        <SchoolProfileModal name={profileSchool} onClose={() => setProfileSchool(null)} />
+      )}
 
       <footer className="relative z-10 border-t border-[var(--c-border)] bg-[var(--c-card)] py-6">
         <div className="mx-auto max-w-[1200px] px-4 md:px-6">
@@ -1642,6 +1652,164 @@ function FilterPanel(props: {
   );
 }
 
+// ============ 院校档案弹窗 ============
+function SchoolProfileModal({ name, onClose }: { name: string; onClose: () => void }) {
+  const profile = getSchoolProfile(name);
+  const links = getSchoolLinks(name);
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+      onClick={onClose}
+    >
+      <div
+        className="max-h-[85vh] w-full max-w-2xl overflow-y-auto rounded-xl border border-[var(--c-border)] bg-[var(--c-card-solid)] shadow-2xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* 头部 */}
+        <div className="sticky top-0 z-10 flex items-start justify-between gap-3 border-b border-[var(--c-border)] bg-[var(--c-card-solid)] p-5">
+          <div className="min-w-0 flex-1">
+            <h3 className="font-display text-lg font-semibold text-[var(--c-title)] sm:text-xl">{name}</h3>
+            {profile && (
+              <div className="mt-1.5 flex flex-wrap gap-1.5">
+                {profile.tags.map((t) => (
+                  <span
+                    key={t}
+                    className="rounded-full px-2 py-0.5 text-[10px] font-medium"
+                    style={{
+                      background: t === "985" ? "var(--c-error)" : t === "211" ? "var(--c-warning)" : "var(--c-primary)",
+                      color: "#fff",
+                    }}
+                  >
+                    {t}
+                  </span>
+                ))}
+                <span className="rounded-full bg-[var(--c-block-30)] px-2 py-0.5 text-[10px] text-[var(--c-secondary)]">
+                  {profile.adminType}
+                </span>
+              </div>
+            )}
+          </div>
+          <button
+            onClick={onClose}
+            className="shrink-0 rounded-lg p-1.5 text-[var(--c-secondary)] transition hover:bg-[var(--c-primary-8)] hover:text-[var(--c-title)]"
+          >
+            <X size={18} />
+          </button>
+        </div>
+
+        {/* 内容 */}
+        <div className="space-y-5 p-5">
+          {profile ? (
+            <>
+              {/* 主管单位 */}
+              <section>
+                <h4 className="mb-2 flex items-center gap-1.5 text-xs font-medium text-[var(--c-secondary)]">
+                  <Building2 size={13} />
+                  主管单位 / 隶属关系
+                </h4>
+                <div className="rounded-lg border border-[var(--c-border)] bg-[var(--c-bg)] p-3 text-sm text-[var(--c-body)]">
+                  <div className="mb-1">
+                    <span className="text-[var(--c-secondary-50)]">主管类型：</span>
+                    <span className="font-medium text-[var(--c-title)]">{profile.adminType}</span>
+                  </div>
+                  <div>
+                    <span className="text-[var(--c-secondary-50)]">直属单位：</span>
+                    <span className="font-medium text-[var(--c-title)]">{profile.admin}</span>
+                  </div>
+                </div>
+              </section>
+
+              {/* 王牌专业 */}
+              <section>
+                <h4 className="mb-2 flex items-center gap-1.5 text-xs font-medium text-[var(--c-secondary)]">
+                  <Award size={13} />
+                  王牌专业与行业地位
+                </h4>
+                <div className="space-y-2">
+                  {profile.aceMajors.map((m, i) => (
+                    <div
+                      key={i}
+                      className="rounded-lg border border-[var(--c-border)] bg-[var(--c-bg)] p-3"
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <span className="font-medium text-[var(--c-title)]">{m.name}</span>
+                        <span
+                          className="shrink-0 rounded px-1.5 py-0.5 text-[10px] font-medium"
+                          style={{
+                            background: m.level.includes("A+") ? "var(--c-error)" : m.level.includes("双一流") ? "var(--c-primary)" : "var(--c-block-30)",
+                            color: m.level.includes("A+") || m.level.includes("双一流") ? "#fff" : "var(--c-secondary)",
+                          }}
+                        >
+                          {m.level}
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                <p className="mt-2 text-[10px] text-[var(--c-secondary-50)]">
+                  * A+ 学科为教育部第四轮学科评估最高档；双一流建设学科为国家公布的世界一流学科建设名单
+                </p>
+              </section>
+            </>
+          ) : (
+            <div className="rounded-lg border border-dashed border-[var(--c-border)] bg-[var(--c-bg)] p-6 text-center">
+              <Info size={28} className="mx-auto mb-2 text-[var(--c-secondary-50)]" />
+              <p className="text-sm text-[var(--c-secondary)]">
+                该院校暂无详细档案收录
+              </p>
+              <p className="mt-1 text-[10px] text-[var(--c-secondary-50)]">
+                可通过下方链接查询官方信息
+              </p>
+            </div>
+          )}
+
+          {/* 查询链接（所有院校都有） */}
+          <section>
+            <h4 className="mb-2 flex items-center gap-1.5 text-xs font-medium text-[var(--c-secondary)]">
+              <ExternalLink size={13} />
+              权威信息查询
+            </h4>
+            <div className="flex flex-wrap gap-2">
+              <a
+                href={links.gaokao}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--c-border)] bg-[var(--c-bg)] px-3 py-2 text-xs text-[var(--c-body)] transition hover:border-[var(--c-primary)] hover:text-[var(--c-primary)]"
+              >
+                <GraduationCap size={14} />
+                阳光高考
+              </a>
+              <a
+                href={links.baike}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--c-border)] bg-[var(--c-bg)] px-3 py-2 text-xs text-[var(--c-body)] transition hover:border-[var(--c-primary)] hover:text-[var(--c-primary)]"
+              >
+                <BookOpen size={14} />
+                百度百科
+              </a>
+              <a
+                href={links.official}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--c-border)] bg-[var(--c-bg)] px-3 py-2 text-xs text-[var(--c-body)] transition hover:border-[var(--c-primary)] hover:text-[var(--c-primary)]"
+              >
+                <ExternalLink size={14} />
+                官网搜索
+              </a>
+            </div>
+          </section>
+
+          <div className="border-t border-[var(--c-border-soft)] pt-3 text-[10px] text-[var(--c-secondary-50)]">
+            ⚠️ 以上信息仅供参考，最终请以教育部、院校官方公告为准
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function TabButton({ active, onClick, count, children }: {
   active: boolean;
   onClick: () => void;
@@ -1702,7 +1870,7 @@ function TuitionBadge({ tier, label }: { tier: number; label: string }) {
   );
 }
 
-function BenkeTable({ rows, talentFilter, meta, page }: { rows: BenkeRow[]; talentFilter: Set<string>; meta: Meta | null; page: number }) {
+function BenkeTable({ rows, talentFilter, meta, page, onSchoolClick }: { rows: BenkeRow[]; talentFilter: Set<string>; meta: Meta | null; page: number; onSchoolClick: (name: string) => void }) {
   return (
     <>
     <div className="hidden overflow-x-auto rounded-lg border border-[var(--c-border)] md:block">
@@ -1738,7 +1906,15 @@ function BenkeTable({ rows, talentFilter, meta, page }: { rows: BenkeRow[]; tale
               >
                 <Td><span className="font-mono text-[var(--c-secondary-70)]">{(page - 1) * 50 + i + 1}</span></Td>
                 <Td><span className="font-mono">{r[1]}</span></Td>
-                <Td><span className="text-[var(--c-title)]">{r[2]}</span></Td>
+                <Td>
+                  <button
+                    onClick={() => onSchoolClick(r[2])}
+                    className="text-left text-[var(--c-title)] transition-colors hover:text-[var(--c-primary)] hover:underline"
+                    title="点击查看院校档案"
+                  >
+                    {r[2]}
+                  </button>
+                </Td>
                 <Td><span className="font-mono text-[var(--c-body)]">{r[3] || "-"}</span></Td>
                 <Td><span className="text-[var(--c-secondary)]">{r[4] || "-"}</span></Td>
                 <Td>
@@ -1781,7 +1957,13 @@ function BenkeTable({ rows, talentFilter, meta, page }: { rows: BenkeRow[]; tale
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2">
                   <span className="font-mono text-[10px] text-[var(--c-secondary-50)]">#{(page - 1) * 50 + i + 1}</span>
-                  <span className="truncate text-[var(--c-title)] font-medium">{r[2]}</span>
+                  <button
+                    onClick={() => onSchoolClick(r[2])}
+                    className="truncate text-[var(--c-title)] font-medium transition-colors hover:text-[var(--c-primary)]"
+                    title="点击查看院校档案"
+                  >
+                    {r[2]}
+                  </button>
                 </div>
                 <div className="mt-0.5 flex items-center gap-2 text-[10px] text-[var(--c-secondary)]">
                   <span className="font-mono">{r[1]}</span>
@@ -1844,7 +2026,7 @@ function BenkeTable({ rows, talentFilter, meta, page }: { rows: BenkeRow[]; tale
   );
 }
 
-function ZhuankeTable({ rows, talentFilter, meta, page }: { rows: ZhuankeRow[]; talentFilter: Set<string>; meta: Meta | null; page: number }) {
+function ZhuankeTable({ rows, talentFilter, meta, page, onSchoolClick }: { rows: ZhuankeRow[]; talentFilter: Set<string>; meta: Meta | null; page: number; onSchoolClick: (name: string) => void }) {
   return (
     <>
     <div className="hidden overflow-x-auto rounded-lg border border-[var(--c-border)] md:block">
@@ -1878,7 +2060,15 @@ function ZhuankeTable({ rows, talentFilter, meta, page }: { rows: ZhuankeRow[]; 
               >
                 <Td><span className="font-mono text-[var(--c-secondary-70)]">{(page - 1) * 50 + i + 1}</span></Td>
                 <Td><span className="font-mono">{r[1]}</span></Td>
-                <Td><span className="text-[var(--c-title)]">{r[2]}</span></Td>
+                <Td>
+                  <button
+                    onClick={() => onSchoolClick(r[2])}
+                    className="text-left text-[var(--c-title)] transition-colors hover:text-[var(--c-primary)] hover:underline"
+                    title="点击查看院校档案"
+                  >
+                    {r[2]}
+                  </button>
+                </Td>
                 <Td><span className="font-mono text-[var(--c-body)]">{r[3] || "-"}</span></Td>
                 <Td><span className="text-[var(--c-secondary)]">{r[4] || "-"}</span></Td>
                 <Td right>{r[5] ?? "-"}</Td>
@@ -1914,7 +2104,13 @@ function ZhuankeTable({ rows, talentFilter, meta, page }: { rows: ZhuankeRow[]; 
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2">
                   <span className="font-mono text-[10px] text-[var(--c-secondary-50)]">#{(page - 1) * 50 + i + 1}</span>
-                  <span className="truncate text-[var(--c-title)] font-medium">{r[2]}</span>
+                  <button
+                    onClick={() => onSchoolClick(r[2])}
+                    className="truncate text-[var(--c-title)] font-medium transition-colors hover:text-[var(--c-primary)]"
+                    title="点击查看院校档案"
+                  >
+                    {r[2]}
+                  </button>
                 </div>
                 <div className="mt-0.5 flex items-center gap-2 text-[10px] text-[var(--c-secondary)]">
                   <span className="font-mono">{r[1]}</span>
