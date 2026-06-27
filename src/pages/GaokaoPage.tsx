@@ -568,10 +568,10 @@ export default function GaokaoPage() {
       }
       if (!matched) return false;
     }
-    // 院校类型筛选（985/211/双一流/普通）
+    // 院校类型筛选（985/211/双一流/普通）：多选为交集，需同时满足所有选中类型
     if (schoolTypeFilter.size > 0) {
       const types = getSchoolType(r[2]);
-      const matched = types.some(t => schoolTypeFilter.has(t));
+      const matched = Array.from(schoolTypeFilter).every(t => types.includes(t));
       if (!matched) return false;
     }
     // 录取最低分范围（双向）
@@ -606,10 +606,10 @@ export default function GaokaoPage() {
       }
       if (!matched) return false;
     }
-    // 院校类型筛选（985/211/双一流/普通）—— 专科批 r[2] 同样是院校名称
+    // 院校类型筛选（985/211/双一流/普通）：多选为交集，需同时满足所有选中类型
     if (schoolTypeFilter.size > 0) {
       const types = getSchoolType(r[2]);
-      const matched = types.some(t => schoolTypeFilter.has(t));
+      const matched = Array.from(schoolTypeFilter).every(t => types.includes(t));
       if (!matched) return false;
     }
     if (r[8] < scoreMin || r[8] > scoreMax) return false;
@@ -1586,6 +1586,7 @@ function FilterPanel(props: {
           <div className="mb-2 flex items-center gap-1.5 text-[var(--c-secondary)]">
             <School className="h-3.5 w-3.5" />
             <span className="text-xs font-medium">院校类型</span>
+            <span className="text-[10px] text-[var(--c-secondary-50)]">（多选取交集：需同时满足所有选中类型）</span>
             {props.schoolTypeFilter.size > 0 && (
               <button
                 onClick={() => props.setSchoolTypeFilter(new Set())}
@@ -1595,7 +1596,7 @@ function FilterPanel(props: {
               </button>
             )}
           </div>
-          <div className="flex flex-wrap gap-1.5">
+          <div className="flex flex-wrap gap-2">
             {([
               { key: "985", label: "985", color: "var(--c-error)" },
               { key: "211", label: "211", color: "var(--c-warning)" },
@@ -1612,7 +1613,7 @@ function FilterPanel(props: {
                     else next.add(t.key);
                     props.setSchoolTypeFilter(next);
                   }}
-                  className="rounded-md px-2.5 py-1 text-xs transition"
+                  className="min-h-[44px] rounded-lg px-4 py-2 text-sm font-medium transition md:min-h-[32px] md:px-3 md:py-1 md:text-xs"
                   style={active ? { background: t.color, color: "var(--c-hover-text)" } : {
                     background: "transparent",
                     border: "1px solid var(--c-border)",
@@ -1625,7 +1626,7 @@ function FilterPanel(props: {
             })}
           </div>
           <p className="mt-1.5 text-[10px] text-[var(--c-secondary-50)]">
-            基于院校名称与已知名单匹配，仅供标识参考。
+            基于院校名称与已知名单匹配，仅供标识参考。多选时取交集（如选 985+211 只显示既是 985 又是 211 的院校）。
           </p>
         </div>
 
