@@ -34,6 +34,39 @@ interface GaokaoData {
   z: ZhuankeRow[];
 }
 
+// ============ 数据缓存（移动端优化，避免重复下载+解析大文件） ============
+const CACHE_PREFIX = "gk_data_";
+
+// 读取缓存数据（带版本号校验）
+function readCache(key: string, expectedVer: string): any | null {
+  try {
+    const raw = localStorage.getItem(CACHE_PREFIX + key);
+    if (!raw) return null;
+    const { ver, data } = JSON.parse(raw);
+    if (ver !== expectedVer) return null;
+    return data;
+  } catch {
+    return null;
+  }
+}
+
+// 写入缓存（失败不抛错，可能超 quota）
+function writeCache(key: string, ver: string, data: any): void {
+  try {
+    localStorage.setItem(CACHE_PREFIX + key, JSON.stringify({ ver, data }));
+  } catch {
+    // 超出 localStorage 配额，清理旧缓存后重试一次
+    try {
+      Object.keys(localStorage).forEach(k => {
+        if (k.startsWith(CACHE_PREFIX)) localStorage.removeItem(k);
+      });
+      localStorage.setItem(CACHE_PREFIX + key, JSON.stringify({ ver, data }));
+    } catch {
+      // 仍然失败则放弃缓存
+    }
+  }
+}
+
 interface Meta {
   benkeCount: number;
   zhuankeCount: number;
@@ -45,6 +78,8 @@ interface Meta {
   schoolCount: number;
   tuitionTiers: { tier: number; label: string; range: string; color: string }[];
   talents: { id: string; name: string; color: string }[];
+  benkeVer?: string;   // 本科数据版本号（用于缓存校验）
+  zhuankeVer?: string; // 专科数据版本号
 }
 
 const TUITION_LABELS: Record<number, { label: string; color: string }> = {
@@ -293,6 +328,8 @@ export default function GaokaoPage() {
   const [tab, setTab] = useState<"benke" | "zhuanke">("benke");
   const [province, setProvince] = useState<ProvinceInfo>(PROVINCES[0]);
   const [showProvincePanel, setShowProvincePanel] = useState(false);
+  // 专科数据按需加载状态
+  const [zhuankeLoading, setZhuankeLoading] = useState(false);
 
   // ============ 筛选状态 ============
   const [searchSchool, setSearchSchool] = useState("");
@@ -361,26 +398,56 @@ export default function GaokaoPage() {
         setLoadProgress(10);
         await new Promise(r => setTimeout(r, 100));
 
-        setLoadStage("正在下载院校数据...");
-        setLoadProgress(30);
-        const dRes = await fetch("./gaokao-data.json");
-        if (!dRes.ok) throw new Error(`数据文件请求失败（HTTP ${dRes.status}）`);
-
+        // 第一步：加载元信息（含数据版本号，仅 1.4KB）
         setLoadStage("正在下载元信息...");
-        setLoadProgress(60);
+        setLoadProgress(20);
         const mRes = await fetch("./gaokao-meta.json");
         if (!mRes.ok) throw new Error(`元信息请求失败（HTTP ${mRes.status}）`);
+        const m: Meta = await mRes.json();
+        if (cancelled) return;
+        setMeta(m);
 
-        setLoadStage("正在解析数据...");
-        setLoadProgress(80);
-        const d = await dRes.json();
-        const m = await mRes.json();
+        const benkeVer = m.benkeVer || "v1";
+
+        // 第二步：本科数据优先用 localStorage 缓存（命中则跳过 3.7MB 下载）
+        setLoadStage("正在加载本科数据...");
+        setLoadProgress(40);
+
+        let benkeData: { m?: string; g?: string; b: BenkeRow[] } | null = null;
+
+        // 先尝试缓存
+        const cached = readCache("benke", benkeVer);
+        if (cached && Array.isArray(cached.b) && cached.b.length > 0) {
+          // 缓存命中，直接使用（跳过网络下载+JSON.parse）
+          benkeData = cached;
+          setLoadProgress(85);
+        } else {
+          // 缓存未命中，下载并解析
+          setLoadStage("正在下载本科数据（首次加载较慢）...");
+          setLoadProgress(50);
+          const bRes = await fetch("./benke.json");
+          if (!bRes.ok) throw new Error(`本科数据请求失败（HTTP ${bRes.status}）`);
+          const bText = await bRes.text();
+          setLoadStage("正在解析本科数据...");
+          setLoadProgress(70);
+          benkeData = JSON.parse(bText);
+          // 写入缓存（异步，不阻塞）
+          writeCache("benke", benkeVer, benkeData);
+        }
 
         setLoadStage("正在初始化界面...");
         setLoadProgress(95);
         if (cancelled) return;
+
+        // 构造 GaokaoData：本科数据已加载，专科延迟加载
+        const d: GaokaoData = {
+          m: benkeData.m || "",
+          g: benkeVer,
+          b: benkeData.b || [],
+          z: [],  // 专科延迟加载
+        };
+
         setData(d);
-        setMeta(m);
         setScoreMin(m.benkeScoreRange.min);
         setScoreMax(m.benkeScoreRange.max);
         setLoadProgress(100);
@@ -415,10 +482,41 @@ export default function GaokaoPage() {
     } else {
       setScoreMin(meta.zhuankeScoreRange.min);
       setScoreMax(meta.zhuankeScoreRange.max);
+      // 按需加载专科数据
+      if (data && data.z.length === 0 && !zhuankeLoading) {
+        loadZhuankeData();
+      }
     }
     setPageB(1);
     setPageZ(1);
   }, [tab, meta]);
+
+  // 按需加载专科数据（仅 0.5MB，命中缓存秒开）
+  const loadZhuankeData = async () => {
+    if (!data || data.z.length > 0) return;
+    setZhuankeLoading(true);
+    try {
+      const zhuankeVer = meta?.zhuankeVer || "v1";
+      // 先尝试缓存
+      const cached = readCache("zhuanke", zhuankeVer);
+      let zhuankeRows: ZhuankeRow[];
+      if (cached && Array.isArray(cached.z)) {
+        zhuankeRows = cached.z;
+      } else {
+        const zRes = await fetch("./zhuanke.json");
+        if (!zRes.ok) throw new Error(`专科数据请求失败（HTTP ${zRes.status}）`);
+        const zParsed = await zRes.json();
+        zhuankeRows = zParsed.z || [];
+        writeCache("zhuanke", zhuankeVer, zParsed);
+      }
+      // 更新 data，保留已加载的本科数据
+      setData(prev => prev ? { ...prev, z: zhuankeRows } : prev);
+    } catch (e) {
+      console.error("专科数据加载失败:", e);
+    } finally {
+      setZhuankeLoading(false);
+    }
+  };
 
   // 初始化时设置分数范围
   useEffect(() => {
@@ -904,7 +1002,7 @@ export default function GaokaoPage() {
           <TabButton active={tab === "benke"} onClick={() => setTab("benke")} count={filteredB.length}>
             本科批物理类专业
           </TabButton>
-          <TabButton active={tab === "zhuanke"} onClick={() => setTab("zhuanke")} count={filteredZ.length}>
+          <TabButton active={tab === "zhuanke"} onClick={() => setTab("zhuanke")} count={data && data.z.length > 0 ? filteredZ.length : (meta?.zhuankeCount || 0)}>
             高职专科批物理类专业组
           </TabButton>
         </div>
@@ -949,6 +1047,13 @@ export default function GaokaoPage() {
         {/* 表格 */}
         {tab === "benke" ? (
           <BenkeTable rows={pagedB} talentFilter={talentFilter} meta={meta} page={pageB} onSchoolClick={setProfileSchool} />
+        ) : data && data.z.length === 0 ? (
+          <div className="flex flex-col items-center justify-center gap-3 py-16 text-center">
+            <Loader2 className="h-8 w-8 animate-spin text-[var(--c-primary)]" />
+            <p className="text-sm text-[var(--c-secondary)]">
+              {zhuankeLoading ? "正在加载专科数据..." : "正在准备专科数据..."}
+            </p>
+          </div>
         ) : (
           <ZhuankeTable rows={pagedZ} talentFilter={talentFilter} meta={meta} page={pageZ} onSchoolClick={setProfileSchool} />
         )}
