@@ -890,6 +890,346 @@ export function getSchoolProfile(rawName: string): SchoolProfile | null {
   return PROFILES[normalized] || PROFILES[rawName] || null;
 }
 
+// ============ 基于院校名称推断主力专业（普通院校用） ============
+// 名称关键词 → 主力专业方向 + 行业地位描述
+interface InferRule {
+  keywords: string[];        // 命中任一关键词即适用
+  majors: AceMajor[];
+  category: string;           // 院校类型标签
+}
+
+const INFER_RULES: InferRule[] = [
+  {
+    keywords: ["医学院", "医科大学", "医学高等专科"],
+    category: "医药类",
+    majors: [
+      { name: "临床医学", level: "主力专业" },
+      { name: "口腔医学", level: "主力专业" },
+      { name: "护理学", level: "主力专业" },
+      { name: "医学影像学", level: "特色专业" },
+    ],
+  },
+  {
+    keywords: ["中医药", "中医学院"],
+    category: "中医药类",
+    majors: [
+      { name: "中医学", level: "主力专业" },
+      { name: "中药学", level: "主力专业" },
+      { name: "针灸推拿学", level: "特色专业" },
+    ],
+  },
+  {
+    keywords: ["药科大学", "药学院", "制药"],
+    category: "药学类",
+    majors: [
+      { name: "药学", level: "主力专业" },
+      { name: "药物制剂", level: "特色专业" },
+      { name: "中药学", level: "特色专业" },
+    ],
+  },
+  {
+    keywords: ["师范", "教育学院", "高等师范"],
+    category: "师范类",
+    majors: [
+      { name: "汉语言文学", level: "主力专业" },
+      { name: "数学与应用数学", level: "主力专业" },
+      { name: "英语", level: "主力专业" },
+      { name: "小学教育", level: "特色专业" },
+    ],
+  },
+  {
+    keywords: ["农业大学", "农业学院", "农牧", "农学院"],
+    category: "农林类",
+    majors: [
+      { name: "农学", level: "主力专业" },
+      { name: "动物医学", level: "主力专业" },
+      { name: "食品科学与工程", level: "特色专业" },
+      { name: "园艺", level: "特色专业" },
+    ],
+  },
+  {
+    keywords: ["林业大学", "林业学院"],
+    category: "林业类",
+    majors: [
+      { name: "林学", level: "主力专业" },
+      { name: "木材科学与工程", level: "特色专业" },
+      { name: "园林", level: "特色专业" },
+    ],
+  },
+  {
+    keywords: ["理工大学", "工业学院", "工程学院", "理工", "工业"],
+    category: "理工类",
+    majors: [
+      { name: "机械工程", level: "主力专业" },
+      { name: "电气工程及其自动化", level: "主力专业" },
+      { name: "计算机科学与技术", level: "主力专业" },
+      { name: "土木工程", level: "特色专业" },
+    ],
+  },
+  {
+    keywords: ["财经大学", "经济学院", "经贸", "商学院", "工商学院", "经济贸易"],
+    category: "财经类",
+    majors: [
+      { name: "会计学", level: "主力专业" },
+      { name: "金融学", level: "主力专业" },
+      { name: "财务管理", level: "特色专业" },
+      { name: "国际经济与贸易", level: "特色专业" },
+    ],
+  },
+  {
+    keywords: ["政法", "法学院", "法律"],
+    category: "政法类",
+    majors: [
+      { name: "法学", level: "主力专业" },
+      { name: "社会工作", level: "特色专业" },
+      { name: "政治学与行政学", level: "特色专业" },
+    ],
+  },
+  {
+    keywords: ["外国语", "外语", "语言大学"],
+    category: "外语类",
+    majors: [
+      { name: "英语", level: "主力专业" },
+      { name: "翻译", level: "主力专业" },
+      { name: "商务英语", level: "特色专业" },
+    ],
+  },
+  {
+    keywords: ["建筑大学", "建筑学院", "建筑工程"],
+    category: "建筑类",
+    majors: [
+      { name: "建筑学", level: "主力专业" },
+      { name: "土木工程", level: "主力专业" },
+      { name: "城乡规划", level: "特色专业" },
+      { name: "工程管理", level: "特色专业" },
+    ],
+  },
+  {
+    keywords: ["交通", "铁道", "铁路"],
+    category: "交通类",
+    majors: [
+      { name: "交通运输", level: "主力专业" },
+      { name: "交通工程", level: "主力专业" },
+      { name: "车辆工程", level: "特色专业" },
+    ],
+  },
+  {
+    keywords: ["航空", "航天", "民航"],
+    category: "航空类",
+    majors: [
+      { name: "飞行器动力工程", level: "主力专业" },
+      { name: "交通运输（空中管制）", level: "特色专业" },
+      { name: "飞行器制造工程", level: "特色专业" },
+    ],
+  },
+  {
+    keywords: ["电力", "电气"],
+    category: "电力类",
+    majors: [
+      { name: "电气工程及其自动化", level: "主力专业" },
+      { name: "能源与动力工程", level: "特色专业" },
+    ],
+  },
+  {
+    keywords: ["邮电", "信息工程"],
+    category: "信息类",
+    majors: [
+      { name: "通信工程", level: "主力专业" },
+      { name: "计算机科学与技术", level: "主力专业" },
+      { name: "电子信息工程", level: "特色专业" },
+    ],
+  },
+  {
+    keywords: ["水利水电", "水电", "水利"],
+    category: "水利类",
+    majors: [
+      { name: "水利水电工程", level: "主力专业" },
+      { name: "水文与水资源工程", level: "特色专业" },
+    ],
+  },
+  {
+    keywords: ["矿业", "煤炭", "资源"],
+    category: "矿业类",
+    majors: [
+      { name: "采矿工程", level: "主力专业" },
+      { name: "安全工程", level: "主力专业" },
+      { name: "矿物加工工程", level: "特色专业" },
+    ],
+  },
+  {
+    keywords: ["石油", "石化"],
+    category: "石化类",
+    majors: [
+      { name: "石油工程", level: "主力专业" },
+      { name: "化学工程与工艺", level: "主力专业" },
+    ],
+  },
+  {
+    keywords: ["冶金", "材料"],
+    category: "材料类",
+    majors: [
+      { name: "冶金工程", level: "主力专业" },
+      { name: "材料科学与工程", level: "主力专业" },
+    ],
+  },
+  {
+    keywords: ["化工", "化学工程"],
+    category: "化工类",
+    majors: [
+      { name: "化学工程与工艺", level: "主力专业" },
+      { name: "应用化学", level: "特色专业" },
+    ],
+  },
+  {
+    keywords: ["纺织", "服装"],
+    category: "纺织类",
+    majors: [
+      { name: "纺织工程", level: "主力专业" },
+      { name: "服装设计与工程", level: "特色专业" },
+    ],
+  },
+  {
+    keywords: ["海洋大学", "海洋学院", "海事"],
+    category: "海洋类",
+    majors: [
+      { name: "海洋科学", level: "主力专业" },
+      { name: "水产养殖学", level: "主力专业" },
+      { name: "航海技术", level: "特色专业" },
+    ],
+  },
+  {
+    keywords: ["体育", "运动"],
+    category: "体育类",
+    majors: [
+      { name: "体育教育", level: "主力专业" },
+      { name: "运动训练", level: "主力专业" },
+      { name: "社会体育指导与管理", level: "特色专业" },
+    ],
+  },
+  {
+    keywords: ["美术", "艺术", "设计", "工艺美"],
+    category: "艺术类",
+    majors: [
+      { name: "视觉传达设计", level: "主力专业" },
+      { name: "环境设计", level: "主力专业" },
+      { name: "美术学", level: "特色专业" },
+    ],
+  },
+  {
+    keywords: ["音乐", "戏剧", "舞蹈", "戏曲"],
+    category: "艺术类",
+    majors: [
+      { name: "音乐表演", level: "主力专业" },
+      { name: "音乐学", level: "特色专业" },
+    ],
+  },
+  {
+    keywords: ["传媒", "新闻", "广播电视"],
+    category: "传媒类",
+    majors: [
+      { name: "新闻学", level: "主力专业" },
+      { name: "广播电视学", level: "特色专业" },
+      { name: "网络与新媒体", level: "特色专业" },
+    ],
+  },
+  {
+    keywords: ["警察", "公安", "警官", "司法"],
+    category: "公安类",
+    majors: [
+      { name: "治安学", level: "主力专业" },
+      { name: "侦查学", level: "主力专业" },
+      { name: "刑事科学技术", level: "特色专业" },
+    ],
+  },
+  {
+    keywords: ["旅游", "酒店"],
+    category: "旅游类",
+    majors: [
+      { name: "旅游管理", level: "主力专业" },
+      { name: "酒店管理", level: "特色专业" },
+    ],
+  },
+  {
+    keywords: ["中医药", "民族医学院"],
+    category: "民族医学类",
+    majors: [
+      { name: "中医学", level: "主力专业" },
+      { name: "民族医学", level: "特色专业" },
+    ],
+  },
+  {
+    keywords: ["职业技术", "职业大学", "应用技术"],
+    category: "应用型",
+    majors: [
+      { name: "机械电子工程", level: "主力专业" },
+      { name: "计算机应用技术", level: "主力专业" },
+      { name: "电气自动化技术", level: "特色专业" },
+    ],
+  },
+  {
+    keywords: ["城市", "市政", "城管"],
+    category: "城市管理类",
+    majors: [
+      { name: "城市管理", level: "主力专业" },
+      { name: "工程管理", level: "特色专业" },
+    ],
+  },
+  {
+    keywords: ["电子科技", "电子信息", "光电"],
+    category: "电子信息类",
+    majors: [
+      { name: "电子信息工程", level: "主力专业" },
+      { name: "通信工程", level: "主力专业" },
+      { name: "计算机科学与技术", level: "特色专业" },
+    ],
+  },
+  {
+    keywords: ["地质", "矿产", "测绘"],
+    category: "地矿类",
+    majors: [
+      { name: "地质工程", level: "主力专业" },
+      { name: "测绘工程", level: "特色专业" },
+    ],
+  },
+  {
+    keywords: ["气象", "大气"],
+    category: "气象类",
+    majors: [
+      { name: "大气科学", level: "主力专业" },
+      { name: "应用气象学", level: "特色专业" },
+    ],
+  },
+  {
+    keywords: ["民族"],
+    category: "民族类",
+    majors: [
+      { name: "民族学", level: "主力专业" },
+      { name: "中国少数民族语言文学", level: "特色专业" },
+    ],
+  },
+  {
+    keywords: ["联合大学", "学院", "大学"],
+    category: "综合类",
+    majors: [
+      { name: "计算机科学与技术", level: "主力专业" },
+      { name: "会计学", level: "主力专业" },
+      { name: "汉语言文学", level: "特色专业" },
+      { name: "国际经济与贸易", level: "特色专业" },
+    ],
+  },
+];
+
+// 推断院校主力专业（普通院校用）
+export function inferAceMajors(rawName: string): { majors: AceMajor[]; category: string } | null {
+  const name = normalizeSchoolName(rawName);
+  for (const rule of INFER_RULES) {
+    if (rule.keywords.some(kw => name.includes(kw))) {
+      return { majors: rule.majors, category: rule.category };
+    }
+  }
+  return null;
+}
+
 // 生成跳转链接（所有院校可用）
 export interface SchoolLinks {
   gaokao: string;     // 阳光高考平台

@@ -7,7 +7,7 @@ import {
   Building2, Award, ExternalLink, Info,
 } from "lucide-react";
 import ThemeToggle, { useGkTheme } from "@/components/ThemeToggle";
-import { getSchoolProfile, getSchoolLinks } from "@/data/schoolProfiles";
+import { getSchoolProfile, getSchoolLinks, inferAceMajors } from "@/data/schoolProfiles";
 
 // ============ 类型定义 ============
 // 本科批: [排名, 院校代号, 院校名称, 专业组代码, 再选科目, 专业代码, 专业名称,
@@ -1655,7 +1655,52 @@ function FilterPanel(props: {
 // ============ 院校档案弹窗 ============
 function SchoolProfileModal({ name, onClose }: { name: string; onClose: () => void }) {
   const profile = getSchoolProfile(name);
+  const inferred = !profile ? inferAceMajors(name) : null;
   const links = getSchoolLinks(name);
+
+  // 弹窗打开时锁定 body 滚动，避免背景滚动卡顿；Esc 关闭
+  useEffect(() => {
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    window.addEventListener("keydown", onKey);
+    return () => {
+      document.body.style.overflow = prev;
+      window.removeEventListener("keydown", onKey);
+    };
+  }, [onClose]);
+
+  // 统一渲染专业列表
+  const renderMajors = (majors: { name: string; level: string }[], isOfficial: boolean) => (
+    <div className="space-y-2">
+      {majors.map((m, i) => {
+        const lv = m.level;
+        const isAplus = lv.includes("A+");
+        const isDouble = lv.includes("双一流");
+        const isMain = lv.includes("主力");
+        const bg = isAplus ? "var(--c-error)" : isDouble ? "var(--c-primary)" : isMain ? "var(--c-success)" : "var(--c-block-30)";
+        const fg = isAplus || isDouble || isMain ? "#fff" : "var(--c-secondary)";
+        return (
+          <div key={i} className="rounded-lg border border-[var(--c-border)] bg-[var(--c-bg)] p-3">
+            <div className="flex items-start justify-between gap-2">
+              <span className="font-medium text-[var(--c-title)]">{m.name}</span>
+              <span
+                className="shrink-0 rounded px-1.5 py-0.5 text-[10px] font-medium"
+                style={{ background: bg, color: fg }}
+              >
+                {lv}
+              </span>
+            </div>
+          </div>
+        );
+      })}
+      <p className="mt-2 text-[10px] text-[var(--c-secondary-50)]">
+        {isOfficial
+          ? "* A+ 学科为教育部第四轮学科评估最高档；双一流建设学科为国家公布的世界一流学科建设名单"
+          : "* 主力专业基于院校名称与类型推断，仅供参考，具体以院校官方公布为准"}
+      </p>
+    </div>
+  );
 
   return (
     <div
@@ -1670,29 +1715,27 @@ function SchoolProfileModal({ name, onClose }: { name: string; onClose: () => vo
         <div className="sticky top-0 z-10 flex items-start justify-between gap-3 border-b border-[var(--c-border)] bg-[var(--c-card-solid)] p-5">
           <div className="min-w-0 flex-1">
             <h3 className="font-display text-lg font-semibold text-[var(--c-title)] sm:text-xl">{name}</h3>
-            {profile && (
-              <div className="mt-1.5 flex flex-wrap gap-1.5">
-                {profile.tags.map((t) => (
-                  <span
-                    key={t}
-                    className="rounded-full px-2 py-0.5 text-[10px] font-medium"
-                    style={{
-                      background: t === "985" ? "var(--c-error)" : t === "211" ? "var(--c-warning)" : "var(--c-primary)",
-                      color: "#fff",
-                    }}
-                  >
-                    {t}
-                  </span>
-                ))}
-                <span className="rounded-full bg-[var(--c-block-30)] px-2 py-0.5 text-[10px] text-[var(--c-secondary)]">
-                  {profile.adminType}
+            <div className="mt-1.5 flex flex-wrap gap-1.5">
+              {profile?.tags.map((t) => (
+                <span
+                  key={t}
+                  className="rounded-full px-2 py-0.5 text-[10px] font-medium"
+                  style={{
+                    background: t === "985" ? "var(--c-error)" : t === "211" ? "var(--c-warning)" : "var(--c-primary)",
+                    color: "#fff",
+                  }}
+                >
+                  {t}
                 </span>
-              </div>
-            )}
+              ))}
+              <span className="rounded-full bg-[var(--c-block-30)] px-2 py-0.5 text-[10px] text-[var(--c-secondary)]">
+                {profile ? profile.adminType : inferred?.category || "普通院校"}
+              </span>
+            </div>
           </div>
           <button
             onClick={onClose}
-            className="shrink-0 rounded-lg p-1.5 text-[var(--c-secondary)] transition hover:bg-[var(--c-primary-8)] hover:text-[var(--c-title)]"
+            className="shrink-0 rounded-lg p-1.5 text-[var(--c-secondary)] transition-colors hover:bg-[var(--c-primary-8)] hover:text-[var(--c-title)]"
           >
             <X size={18} />
           </button>
@@ -1726,42 +1769,32 @@ function SchoolProfileModal({ name, onClose }: { name: string; onClose: () => vo
                   <Award size={13} />
                   王牌专业与行业地位
                 </h4>
-                <div className="space-y-2">
-                  {profile.aceMajors.map((m, i) => (
-                    <div
-                      key={i}
-                      className="rounded-lg border border-[var(--c-border)] bg-[var(--c-bg)] p-3"
-                    >
-                      <div className="flex items-start justify-between gap-2">
-                        <span className="font-medium text-[var(--c-title)]">{m.name}</span>
-                        <span
-                          className="shrink-0 rounded px-1.5 py-0.5 text-[10px] font-medium"
-                          style={{
-                            background: m.level.includes("A+") ? "var(--c-error)" : m.level.includes("双一流") ? "var(--c-primary)" : "var(--c-block-30)",
-                            color: m.level.includes("A+") || m.level.includes("双一流") ? "#fff" : "var(--c-secondary)",
-                          }}
-                        >
-                          {m.level}
-                        </span>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-                <p className="mt-2 text-[10px] text-[var(--c-secondary-50)]">
-                  * A+ 学科为教育部第四轮学科评估最高档；双一流建设学科为国家公布的世界一流学科建设名单
-                </p>
+                {renderMajors(profile.aceMajors, true)}
               </section>
             </>
           ) : (
-            <div className="rounded-lg border border-dashed border-[var(--c-border)] bg-[var(--c-bg)] p-6 text-center">
-              <Info size={28} className="mx-auto mb-2 text-[var(--c-secondary-50)]" />
-              <p className="text-sm text-[var(--c-secondary)]">
-                该院校暂无详细档案收录
-              </p>
-              <p className="mt-1 text-[10px] text-[var(--c-secondary-50)]">
-                可通过下方链接查询官方信息
-              </p>
-            </div>
+            <>
+              {/* 普通院校：展示推断的主力专业 */}
+              <section>
+                <h4 className="mb-2 flex items-center gap-1.5 text-xs font-medium text-[var(--c-secondary)]">
+                  <Award size={13} />
+                  院校主力推动专业
+                </h4>
+                {inferred ? (
+                  renderMajors(inferred.majors, false)
+                ) : (
+                  <div className="rounded-lg border border-dashed border-[var(--c-border)] bg-[var(--c-bg)] p-6 text-center">
+                    <Info size={28} className="mx-auto mb-2 text-[var(--c-secondary-50)]" />
+                    <p className="text-sm text-[var(--c-secondary)]">
+                      该院校暂无主力专业推断
+                    </p>
+                    <p className="mt-1 text-[10px] text-[var(--c-secondary-50)]">
+                      可通过下方链接查询官方信息
+                    </p>
+                  </div>
+                )}
+              </section>
+            </>
           )}
 
           {/* 查询链接（所有院校都有） */}
@@ -1775,7 +1808,7 @@ function SchoolProfileModal({ name, onClose }: { name: string; onClose: () => vo
                 href={links.gaokao}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--c-border)] bg-[var(--c-bg)] px-3 py-2 text-xs text-[var(--c-body)] transition hover:border-[var(--c-primary)] hover:text-[var(--c-primary)]"
+                className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--c-border)] bg-[var(--c-bg)] px-3 py-2 text-xs text-[var(--c-body)] transition-colors hover:border-[var(--c-primary)] hover:text-[var(--c-primary)]"
               >
                 <GraduationCap size={14} />
                 阳光高考
@@ -1784,7 +1817,7 @@ function SchoolProfileModal({ name, onClose }: { name: string; onClose: () => vo
                 href={links.baike}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--c-border)] bg-[var(--c-bg)] px-3 py-2 text-xs text-[var(--c-body)] transition hover:border-[var(--c-primary)] hover:text-[var(--c-primary)]"
+                className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--c-border)] bg-[var(--c-bg)] px-3 py-2 text-xs text-[var(--c-body)] transition-colors hover:border-[var(--c-primary)] hover:text-[var(--c-primary)]"
               >
                 <BookOpen size={14} />
                 百度百科
@@ -1793,7 +1826,7 @@ function SchoolProfileModal({ name, onClose }: { name: string; onClose: () => vo
                 href={links.official}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--c-border)] bg-[var(--c-bg)] px-3 py-2 text-xs text-[var(--c-body)] transition hover:border-[var(--c-primary)] hover:text-[var(--c-primary)]"
+                className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--c-border)] bg-[var(--c-bg)] px-3 py-2 text-xs text-[var(--c-body)] transition-colors hover:border-[var(--c-primary)] hover:text-[var(--c-primary)]"
               >
                 <ExternalLink size={14} />
                 官网搜索
